@@ -1,0 +1,177 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum FactionType {
+  GREAT_BRITAIN
+  FRANCE
+  SPAIN
+  PORTUGAL
+  DUTCH_REPUBLIC
+  GERMAN_STATES
+  HAUDENOSAUNEE
+  SEVEN_NATIONS
+  WESTERN_CONFEDERACY
+  SOUTHEASTERN_NATIONS
+}
+
+enum RoleType {
+  EXECUTIVE           // Governor-General, Viceroy, Council Speaker
+  MILITARY            // Commander-in-Chief, Principal War Chief
+  DIPLOMATIC_COMMERCE // Intendant, Board of Trade, Clan Keeper
+}
+
+enum ControllerType {
+  HUMAN
+  COMPUTER
+}
+
+enum BotBehavior {
+  NONE
+  ADVISOR
+  AUTONOMOUS
+}
+
+enum Phase {
+  INTEL_DISPATCH
+  DIPLOMATIC_TRADE
+  ORDER_SUBMISSION
+  RESOLUTION
+}
+
+enum EventStatus {
+  ACTIVE
+  SUPERSEDED
+  EXPIRED
+  IRRELEVANT
+}
+
+enum EventScope {
+  GLOBAL
+  THEATER
+  FACTION
+  NODE
+}
+
+model Game {
+  id              String      @id @default(cuid())
+  name            String
+  currentYear     Int         @default(1756)
+  currentSeason   String      @default("Spring")
+  currentPhase    Phase       @default(INTEL_DISPATCH)
+  phaseDeadline   DateTime?
+  turnNumber      Int         @default(1)
+  factions        Faction[]
+  nodes           MapNode[]
+  events          GameEvent[]
+  orders          Order[]
+  dispatches      Dispatch[]
+  offMapModifiers Json
+  createdAt       DateTime    @default(now())
+}
+
+model Faction {
+  id              String        @id @default(cuid())
+  gameId          String
+  game            Game          @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  type            FactionType
+  treasury        Int           @default(100)
+  debt            Int           @default(0)
+  unrestIndex     Int           @default(0)
+  standingPoints  Int           @default(3)
+  roles           FactionRole[]
+  nodesControlled MapNode[]
+  units           Unit[]
+}
+
+model FactionRole {
+  id              String         @id @default(cuid())
+  factionId       String
+  faction         Faction        @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  roleType        RoleType
+  title           String
+  controller      ControllerType @default(HUMAN)
+  botBehavior     BotBehavior    @default(NONE)
+  assignedUserId  String?
+  aiPersonaPrompt String?
+}
+
+model MapNode {
+  id              String   @id @default(cuid())
+  gameId          String
+  game            Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  name            String
+  nodeType        String   // "TERRESTRIAL", "SEA_ZONE", "RIVER_PASS"
+  region          String   // "OHIO_VALLEY", "ST_LAWRENCE", "CARIBBEAN"
+  lat             Float
+  lng             Float
+  resourceType    String?  // "SUGAR", "FURS", "TIMBER", "SILVER"
+  resourceYield   Int      @default(0)
+  controllingId   String?
+  controller      Faction? @relation(fields: [controllingId], references: [id])
+  units           Unit[]
+  adjacentNodeIds String[]
+}
+
+model Unit {
+  id             String  @id @default(cuid())
+  factionId      String
+  faction        Faction @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  nodeId         String
+  node           MapNode @relation(fields: [nodeId], references: [id])
+  unitType       String  // "REGULAR", "MILITIA", "NATIVE_WAR_PARTY", "SHIP_OF_THE_LINE", "MERCHANTMAN"
+  strength       Int
+  discipline     Float   @default(1.0)
+  isAcclimatized Boolean @default(false)
+}
+
+model GameEvent {
+  id             String      @id @default(cuid())
+  gameId         String
+  game           Game        @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  turnRecorded   Int
+  validUntilTurn Int?
+  status         EventStatus @default(ACTIVE)
+  scope          EventScope
+  category       String      // "DIPLOMACY", "MILITARY", "COMMERCE", "TREATY", "UNREST"
+  primaryNodeId  String?
+  factionIds     String[]
+  title          String
+  description    String
+  supersededById String?
+  supersededBy   GameEvent?  @relation("EventSupersession", fields: [supersededById], references: [id])
+  supersedes     GameEvent[] @relation("EventSupersession")
+  createdAt      DateTime    @default(now())
+
+  @@index([gameId, status, category])
+  @@index([gameId, turnRecorded])
+}
+
+model Order {
+  id              String   @id @default(cuid())
+  gameId          String
+  game            Game     @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  factionId       String
+  turnNumber      Int
+  orderType       String   // "MOVE", "RECRUIT", "EXTRACT", "TRADE", "SUBSIDIZE", "RAID"
+  payload         Json
+  submittedByRole RoleType
+  isExecuted      Boolean  @default(false)
+}
+
+model Dispatch {
+  id              String  @id @default(cuid())
+  gameId          String
+  game            Game    @relation(fields: [gameId], references: [id], onDelete: Cascade)
+  senderFactionId String
+  targetFactionId String
+  content         String
+  courierDelay    Int
+  turnsRemaining  Int
+  intercepted     Boolean @default(false)
+}

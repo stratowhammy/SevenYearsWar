@@ -1,0 +1,47 @@
+{
+  "name": "seven-years-war-simulator",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate",
+    "db:seed": "tsx prisma/seed.ts",
+    "test": "vitest run",
+    "test:phase1": "vitest run tests/phase1-persistence.test.ts",
+    "test:phase2": "vitest run tests/phase2-admin.test.ts",
+    "test:phase3": "vitest run tests/phase3-map.test.ts",
+    "test:phase4": "vitest run tests/phase4-ai.test.ts",
+    "test:phase5": "vitest run tests/phase5-gameloop.test.ts"
+  },
+  "dependencies": {
+    "@prisma/client": "^6.5.0",
+    "clsx": "^2.1.1",
+    "ioredis": "^5.6.0",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^1.16.0",
+    "next": "^15.2.3",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-leaflet": "^5.0.0",
+    "tailwind-merge": "^3.0.2",
+    "zod": "^3.24.2",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4.0.14",
+    "@types/leaflet": "^1.9.16",
+    "@types/node": "^22.13.10",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "postcss": "^8.5.3",
+    "prisma": "^6.5.0",
+    "tailwindcss": "^4.0.14",
+    "tsx": "^4.19.3",
+    "typescript": "^5.8.2",
+    "vitest": "^3.0.8"
+  }
+}
