@@ -148,7 +148,7 @@ export default function MapViewer({
 
   return (
     <div
-      className="relative w-full h-full min-h-[540px] rounded-xl overflow-hidden border border-amber-900/50 shadow-2xl bg-[#1a1612]"
+      className="relative isolate z-0 w-full h-full min-h-[540px] rounded-xl overflow-hidden border border-amber-900/50 shadow-2xl bg-[#1a1612]"
       data-testid="americas-caribbean-map-viewer"
       data-raster-tile-url={CARTO_MAP_CONFIG.rasterTileUrl}
       data-vector-style-url={CARTO_MAP_CONFIG.vectorStyleUrl}

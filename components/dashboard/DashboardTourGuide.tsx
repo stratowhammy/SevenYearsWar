@@ -377,10 +377,19 @@ export default function DashboardTourGuide({
 
     if (preferredPos === "bottom") {
       top = targetRect.bottom + margin;
-      left = Math.max(margin, Math.min(targetRect.left, window.innerWidth - tooltipWidth - margin));
+      // If target element is wide (e.g. top header or ribbon), align tooltip to the right side near controls
+      if (targetRect.width > 600) {
+        left = Math.max(margin, Math.min(targetRect.right - tooltipWidth - margin, window.innerWidth - tooltipWidth - margin));
+      } else {
+        left = Math.max(margin, Math.min(targetRect.left, window.innerWidth - tooltipWidth - margin));
+      }
     } else if (preferredPos === "top") {
       top = Math.max(margin, targetRect.top - 460 - margin);
-      left = Math.max(margin, Math.min(targetRect.left, window.innerWidth - tooltipWidth - margin));
+      if (targetRect.width > 600) {
+        left = Math.max(margin, Math.min(targetRect.right - tooltipWidth - margin, window.innerWidth - tooltipWidth - margin));
+      } else {
+        left = Math.max(margin, Math.min(targetRect.left, window.innerWidth - tooltipWidth - margin));
+      }
     } else if (preferredPos === "left") {
       top = Math.max(margin, Math.min(targetRect.top, window.innerHeight - 480));
       left = Math.max(margin, targetRect.left - tooltipWidth - margin);
@@ -401,17 +410,17 @@ export default function DashboardTourGuide({
   };
 
   return (
-    <div className="fixed inset-0 z-50 pointer-events-auto">
+    <div className="fixed inset-0 z-[99999] pointer-events-auto">
       {/* Semi-transparent Backdrop */}
       <div
-        className="fixed inset-0 bg-stone-950/80 backdrop-blur-xs transition-opacity duration-300"
+        className="fixed inset-0 z-[99998] bg-stone-950/80 backdrop-blur-xs transition-opacity duration-300"
         onClick={onClose}
       />
 
       {/* Target Element Spotlight Aperture & Glowing Animated Ring */}
       {targetRect && (
         <div
-          className="fixed pointer-events-none transition-all duration-300 z-50"
+          className="fixed pointer-events-none transition-all duration-300 z-[99999]"
           style={{
             top: `${Math.max(0, targetRect.top - 8)}px`,
             left: `${Math.max(0, targetRect.left - 8)}px`,
@@ -432,7 +441,7 @@ export default function DashboardTourGuide({
 
       {/* Floating Animated Guide Card */}
       <div
-        className="fixed z-50 w-[440px] max-w-[calc(100vw-24px)] bg-stone-900/98 border border-amber-500/80 rounded-2xl p-5 shadow-2xl text-stone-100 flex flex-col justify-between transition-all duration-300 backdrop-blur-md"
+        className="fixed z-[100000] w-[440px] max-w-[calc(100vw-24px)] bg-stone-900/98 border border-amber-500/80 rounded-2xl p-5 shadow-2xl text-stone-100 flex flex-col justify-between transition-all duration-300 backdrop-blur-md"
         style={getTooltipStyle()}
       >
         <div>
@@ -571,7 +580,7 @@ export default function DashboardTourGuide({
 
       {/* Complete Reference Handbook Modal */}
       {showHandbookModal && (
-        <div className="fixed inset-0 z-60 bg-stone-950/90 backdrop-blur-md flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-[100001] bg-stone-950/90 backdrop-blur-md flex items-center justify-center p-4">
           <div className="bg-stone-900 border border-stone-700 rounded-2xl max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between px-6 py-4 border-b border-stone-800 bg-stone-950/80">
               <div className="flex items-center gap-2.5">

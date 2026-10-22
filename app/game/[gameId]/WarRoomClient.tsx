@@ -628,7 +628,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
             </div>
           </div>
 
-          <div className="h-[560px]">
+          <div className="h-[560px] relative isolate z-0">
             <DynamicMapViewer
               nodes={game.nodes}
               season={game.currentSeason}
