@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   BotBehavior,
-  ControllerType,
   EventStatus,
   FactionType,
   Phase,
@@ -47,10 +46,11 @@ import {
   Users,
   Flag,
   ShieldCheck,
-  Filter,
   HelpCircle,
   Target,
   Circle,
+  Sun,
+  Moon,
 } from "lucide-react";
 import DashboardTourGuide from "@/components/dashboard/DashboardTourGuide";
 import {
@@ -63,7 +63,7 @@ const DynamicMapViewer = dynamic(
   {
     ssr: false,
     loading: () => (
-      <div className="w-full h-[560px] rounded-xl bg-stone-900/90 border border-amber-900/40 flex items-center justify-center text-amber-200 text-sm font-serif">
+      <div className="w-full h-[560px] rounded-2xl bg-[#162544] border-2 border-amber-600/60 flex items-center justify-center text-amber-100 text-sm font-serif shadow-xl">
         Unrolling 1756 Americas &amp; Caribbean Strategic Chart...
       </div>
     ),
@@ -87,6 +87,11 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
   const [toast, setToast] = useState<string | null>(null);
   const [aiResponse, setAiResponse] = useState<any | null>(null);
   const [isTourOpen, setIsTourOpen] = useState(false);
+  const [themeMode, setThemeMode] = useState<"parchment" | "admiralty">(
+    "parchment"
+  );
+
+  const isDark = themeMode === "admiralty";
 
   const {
     selectedNodeId,
@@ -444,55 +449,89 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
 
   const offMap = (game.offMapModifiers ?? {}) as Record<string, any>;
 
+  const cardClass = isDark ? "syw-card-dark" : "syw-card";
+  const subcardClass = isDark ? "syw-subcard-dark" : "syw-subcard";
+  const ledgerStatClass = isDark ? "syw-ledger-stat-dark" : "syw-ledger-stat";
+  const selectClass = isDark ? "syw-select-dark" : "syw-select";
+  const inputClass = isDark ? "syw-input-dark" : "syw-input";
+
   return (
-    <div className="syw-shell">
-      {/* Top Imperial Command Header */}
+    <div className={isDark ? "syw-shell-dark" : "syw-shell"}>
+      {/* Top Royal Admiralty & Parchment Command Header */}
       <header id="tour-header-stepper" className="syw-header">
         <div className="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-lg bg-amber-950/80 border border-amber-700/60 text-amber-300">
+            <div className="p-2.5 rounded-xl bg-amber-500/20 border border-amber-400/70 text-amber-300 shadow-inner">
               <Compass className="w-6 h-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-lg md:text-xl font-serif font-bold text-amber-100">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-lg md:text-xl font-serif font-bold text-amber-50 tracking-wide">
                   {game.name}
                 </h1>
-                <span className="px-2 py-0.5 rounded text-xs font-mono bg-amber-900/60 text-amber-200 border border-amber-700/50">
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-amber-500 text-slate-950 shadow-xs">
                   Turn {game.turnNumber} • {game.currentSeason}{" "}
                   {game.currentYear}
                 </span>
+                <span className="px-2.5 py-0.5 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/50">
+                  Role VP: {earnedRoleVP}/{activeCharacterGuide.totalRoleVP} •
+                  Nation VP: {earnedFactionVP}/30
+                </span>
               </div>
-              <p className="text-xs text-stone-400">
-                1756 Seven Years&apos; War Simulator • Americas &amp; Caribbean
-                Theater (10°N–55°N, 55°W–100°W)
+              <p className="text-xs text-amber-200/80 font-medium">
+                1756 Seven Years&apos; War Simulator • Playing as{" "}
+                <strong className="text-amber-100">
+                  {activeCharacterGuide.roleTitle} (
+                  {activeCharacterGuide.factionDisplayName})
+                </strong>
               </p>
             </div>
           </div>
 
           {/* 4-Phase Turn Loop Stepper & Controls */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="hidden xl:flex items-center gap-1 bg-stone-950 px-3 py-1.5 rounded-lg border border-stone-800">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="hidden xl:flex items-center gap-1 bg-slate-950/90 px-3 py-1.5 rounded-xl border border-amber-500/30">
               {PHASES.map((p, idx) => {
                 const isActive = game.currentPhase === p;
                 return (
                   <React.Fragment key={p}>
                     <span
-                      className={`text-[11px] font-mono px-2 py-0.5 rounded ${
+                      className={`text-[11px] font-mono px-2 py-0.5 rounded-md ${
                         isActive
-                          ? "bg-amber-600 text-stone-950 font-bold"
-                          : "text-stone-400"
+                          ? "bg-amber-500 text-slate-950 font-bold shadow-xs"
+                          : "text-slate-400"
                       }`}
                     >
                       {idx + 1}. {p}
                     </span>
                     {idx < PHASES.length - 1 && (
-                      <span className="text-stone-600 text-xs">→</span>
+                      <span className="text-slate-600 text-xs">→</span>
                     )}
                   </React.Fragment>
                 );
               })}
             </div>
+
+            <button
+              type="button"
+              onClick={() =>
+                setThemeMode((prev) =>
+                  prev === "parchment" ? "admiralty" : "parchment"
+                )
+              }
+              className="syw-btn-secondary"
+              title="Switch between Imperial Parchment and Admiralty Night themes"
+            >
+              {isDark ? (
+                <>
+                  <Sun className="w-3.5 h-3.5 text-amber-300" /> Parchment Theme
+                </>
+              ) : (
+                <>
+                  <Moon className="w-3.5 h-3.5 text-amber-300" /> Admiralty Night
+                </>
+              )}
+            </button>
 
             <button
               type="button"
@@ -503,7 +542,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
               title="Advance to next phase (Shortcut: N)"
             >
               <Play className="w-3.5 h-3.5" /> Next Phase
-              <span className="text-[10px] font-mono text-amber-400/80 bg-stone-950 px-1.5 py-0.2 rounded border border-stone-700">
+              <span className="text-[10px] font-mono text-amber-300 bg-slate-950 px-1.5 py-0.2 rounded border border-slate-700">
                 N
               </span>
             </button>
@@ -517,7 +556,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
               title="Resolve entire turn cycle (Shortcut: R)"
             >
               <FastForward className="w-3.5 h-3.5" /> Resolve Full Turn
-              <span className="text-[10px] font-mono text-stone-950 bg-amber-300/90 px-1.5 py-0.2 rounded font-bold">
+              <span className="text-[10px] font-mono text-slate-950 bg-amber-200 px-1.5 py-0.2 rounded font-bold">
                 R
               </span>
             </button>
@@ -529,9 +568,9 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
               className="syw-btn-guide"
               title="Interactive Player Guide & Character Victory Points (Shortcut: ?)"
             >
-              <HelpCircle className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              <HelpCircle className="w-3.5 h-3.5 text-amber-200 animate-pulse" />
               <span>Player Guide &amp; VPs</span>
-              <span className="text-[10px] font-mono text-amber-300 bg-stone-950 px-1.5 py-0.2 rounded border border-amber-700/60">
+              <span className="text-[10px] font-mono text-amber-100 bg-red-950 px-1.5 py-0.2 rounded border border-amber-400/50">
                 ?
               </span>
             </button>
@@ -539,7 +578,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
             <Link
               href={`/admin/${game.id}/roles`}
               data-testid="link-admin-roles"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-indigo-950 hover:bg-indigo-900 text-indigo-200 border border-indigo-700/70 transition"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-indigo-900 hover:bg-indigo-800 text-indigo-100 border border-indigo-400/50 transition shadow-sm"
             >
               <Sliders className="w-3.5 h-3.5" /> Admin Role Seating (30 Seats)
             </Link>
@@ -548,44 +587,41 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
       </header>
 
       {/* Off-Map Theater Abstractor Telemetry Ribbon */}
-      <div
-        id="tour-offmap-ribbon"
-        className="bg-stone-900/60 border-b border-stone-800/80 px-6 py-2"
-      >
+      <div id="tour-offmap-ribbon" className="syw-ribbon">
         <div className="max-w-[1600px] mx-auto grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-          <div className="flex items-start gap-2 bg-stone-950/70 px-3 py-1.5 rounded border border-stone-800">
+          <div className="syw-ribbon-pill">
             <Globe className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <div>
               <span className="font-bold text-amber-300">
                 Europe Theater:{" "}
               </span>
-              <span className="text-stone-300">
+              <span className="text-slate-200">
                 {offMap?.europeTheater?.status ?? "ACTIVE"} (GB Drain: -
                 {offMap?.europeTheater?.britishSubsidyDrain ?? 20}£, FR Drain: -
                 {offMap?.europeTheater?.frenchContinentalDrain ?? 25}£)
               </span>
             </div>
           </div>
-          <div className="flex items-start gap-2 bg-stone-950/70 px-3 py-1.5 rounded border border-stone-800">
+          <div className="syw-ribbon-pill">
             <Globe className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
             <div>
               <span className="font-bold text-emerald-300">
                 India Theater:{" "}
               </span>
-              <span className="text-stone-300">
+              <span className="text-slate-200">
                 {offMap?.indiaTheater?.status ?? "CARNATIC_STANDOFF"} (EIC: +
                 {offMap?.indiaTheater?.britishEastIndiaRevenue ?? 15}£, French
                 Indies: +{offMap?.indiaTheater?.frenchCompagnieRevenue ?? 10}£)
               </span>
             </div>
           </div>
-          <div className="flex items-start gap-2 bg-stone-950/70 px-3 py-1.5 rounded border border-stone-800">
+          <div className="syw-ribbon-pill">
             <Globe className="w-4 h-4 text-cyan-400 shrink-0 mt-0.5" />
             <div>
               <span className="font-bold text-cyan-300">
                 West Africa &amp; Atlantic:{" "}
               </span>
-              <span className="text-stone-300">
+              <span className="text-slate-200">
                 Dutch Neutral Freight Bonus: +
                 {offMap?.westAfricaTheater?.dutchNeutralFreightBonus ?? 12}£
               </span>
@@ -594,14 +630,167 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
         </div>
       </div>
 
+      {/* Prominent Player Character Mission & Victory Point Scoreboard Banner */}
+      <section className="max-w-[1600px] w-full mx-auto px-6 pt-5">
+        <div
+          className={
+            isDark ? "syw-character-banner-dark" : "syw-character-banner"
+          }
+        >
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pb-3 border-b border-amber-800/20">
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-2.5 py-0.5 rounded-md text-[11px] font-mono font-bold uppercase bg-[#121e36] text-amber-300 border border-amber-500/50">
+                  {activeCharacterGuide.factionDisplayName} •{" "}
+                  {activeCharacterGuide.roleType}
+                </span>
+                <h2
+                  className={`text-base md:text-lg font-serif font-bold ${
+                    isDark ? "text-amber-100" : "text-slate-900"
+                  }`}
+                >
+                  Your Character: {activeCharacterGuide.roleTitle} —{" "}
+                  <span
+                    className={isDark ? "text-amber-300" : "text-amber-900"}
+                  >
+                    {activeCharacterGuide.characterPersonaName}
+                  </span>
+                </h2>
+              </div>
+              <p
+                className={`text-xs leading-relaxed max-w-4xl ${
+                  isDark ? "text-slate-300" : "text-slate-700"
+                }`}
+              >
+                {activeCharacterGuide.playerBriefing}
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3 shrink-0">
+              <div className="px-3.5 py-2 rounded-xl bg-[#121e36] text-amber-50 border border-amber-500/60 shadow-sm text-right">
+                <div className="text-[10px] font-mono uppercase tracking-wider text-amber-300">
+                  Your Seat Victory Points
+                </div>
+                <div className="text-base font-mono font-bold text-amber-400">
+                  {earnedRoleVP} / {activeCharacterGuide.totalRoleVP} VP{" "}
+                  <span className="text-xs text-slate-300 font-normal">
+                    (Nation: {earnedFactionVP}/30 VP)
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* 3 Character Objectives Horizontal Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-3">
+            {evaluatedCharacterObjectives.map((obj, idx) => (
+              <div
+                key={obj.id}
+                className={
+                  obj.isCompleted
+                    ? "syw-objective-card-completed"
+                    : isDark
+                    ? "syw-objective-card-dark"
+                    : "syw-objective-card"
+                }
+              >
+                <div className="space-y-1.5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-1.5">
+                      {obj.isCompleted ? (
+                        <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                      ) : (
+                        <Target className="w-4 h-4 text-amber-700 shrink-0" />
+                      )}
+                      <span
+                        className={`text-xs font-serif font-bold ${
+                          isDark && !obj.isCompleted
+                            ? "text-amber-100"
+                            : "text-slate-900"
+                        }`}
+                      >
+                        Goal {idx + 1}: {obj.title}
+                      </span>
+                    </div>
+                    <span
+                      className={
+                        obj.isCompleted
+                          ? "syw-vp-badge-completed"
+                          : "syw-vp-badge"
+                      }
+                    >
+                      +{obj.victoryPoints} VP
+                    </span>
+                  </div>
+
+                  <p
+                    className={`text-[11px] leading-snug ${
+                      isDark && !obj.isCompleted
+                        ? "text-slate-300"
+                        : "text-slate-700"
+                    }`}
+                  >
+                    {obj.description}
+                  </p>
+                </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex items-center justify-between text-[10px] font-mono">
+                    <span
+                      className={
+                        obj.isCompleted
+                          ? "text-emerald-800 font-bold"
+                          : isDark
+                          ? "text-amber-300 font-semibold"
+                          : "text-amber-900 font-semibold"
+                      }
+                    >
+                      {obj.progressText}
+                    </span>
+                    <span
+                      className={
+                        isDark && !obj.isCompleted
+                          ? "text-slate-400"
+                          : "text-slate-600"
+                      }
+                    >
+                      {obj.progressPercent}%
+                    </span>
+                  </div>
+                  <div className="syw-progress-track">
+                    <div
+                      className={
+                        obj.isCompleted
+                          ? "syw-progress-fill-completed"
+                          : "syw-progress-fill"
+                      }
+                      style={{ width: `${Math.max(6, obj.progressPercent)}%` }}
+                    />
+                  </div>
+                  <div
+                    className={`text-[10px] font-mono leading-tight pt-0.5 ${
+                      isDark && !obj.isCompleted
+                        ? "text-emerald-300"
+                        : "text-emerald-900 font-medium"
+                    }`}
+                  >
+                    <strong>How to Score:</strong> {obj.howToComplete}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {game.isPeaceTreatyConcluded && (
         <div
           className="max-w-[1600px] w-full mx-auto px-6 pt-3"
           data-testid="treaty-of-paris-banner"
         >
-          <div className="px-4 py-2.5 rounded-lg bg-emerald-950/90 border border-emerald-600/80 text-emerald-100 text-xs flex items-center justify-between">
+          <div className="px-4 py-2.5 rounded-xl bg-emerald-900 border border-emerald-500 text-emerald-50 text-xs flex items-center justify-between shadow-md">
             <div className="flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-300 shrink-0" />
               <span className="font-bold">
                 1763 Treaty of Paris Concluded:
               </span>
@@ -610,7 +799,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                   "Imperial peace ratified; 35% sovereign debt relief applied."}
               </span>
             </div>
-            <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-900/80 text-emerald-200">
+            <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-200">
               PEACE RATIFIED
             </span>
           </div>
@@ -619,15 +808,17 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
 
       {toast && (
         <div className="max-w-[1600px] w-full mx-auto px-6 pt-3">
-          <div className="flex items-center justify-between px-4 py-2 rounded-lg bg-amber-950/80 border border-amber-700 text-amber-200 text-xs">
+          <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-[#121e36] border border-amber-500 text-amber-100 text-xs shadow-md">
             <div className="flex items-center gap-2">
-              {isPending && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
+              {isPending && (
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-amber-400" />
+              )}
               <span>{toast}</span>
             </div>
             <button
               type="button"
               onClick={() => setToast(null)}
-              className="text-stone-400 hover:text-stone-200"
+              className="text-amber-300 hover:text-white cursor-pointer"
             >
               ✕
             </button>
@@ -639,16 +830,18 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
       <main className="max-w-[1600px] w-full mx-auto flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-6">
         {/* Left Column: Americas & Caribbean MapViewer + Node Inspector */}
         <div id="tour-map-canvas" className="lg:col-span-7 flex flex-col gap-4">
-          <div className="flex flex-wrap items-center justify-between gap-2 bg-stone-900/80 px-4 py-2.5 rounded-xl border border-stone-800">
+          <div
+            className={`${cardClass} !py-2.5 !px-4 flex flex-wrap items-center justify-between gap-2`}
+          >
             <div className="flex items-center gap-2 text-xs">
-              <span className="text-stone-400 font-medium">Map Layers:</span>
+              <span className="font-serif font-bold">Cartographic Layers:</span>
               <button
                 type="button"
                 onClick={toggleSeaPolygons}
-                className={`px-2.5 py-1 rounded border text-xs cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg border text-xs font-semibold cursor-pointer transition ${
                   showSeaPolygons
-                    ? "bg-sky-950/80 border-sky-700 text-sky-200"
-                    : "bg-stone-950 border-stone-800 text-stone-400"
+                    ? "bg-sky-900 border-sky-500 text-sky-100 shadow-xs"
+                    : "bg-slate-200 border-slate-400 text-slate-700"
                 }`}
               >
                 Sea Zone Polygons ({showSeaPolygons ? "ON" : "OFF"})
@@ -656,24 +849,24 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
               <button
                 type="button"
                 onClick={toggleSeasonalEdges}
-                className={`px-2.5 py-1 rounded border text-xs cursor-pointer ${
+                className={`px-2.5 py-1 rounded-lg border text-xs font-semibold cursor-pointer transition ${
                   showSeasonalEdges
-                    ? "bg-amber-950/80 border-amber-700 text-amber-200"
-                    : "bg-stone-950 border-stone-800 text-stone-400"
+                    ? "bg-amber-800 border-amber-500 text-amber-50 shadow-xs"
+                    : "bg-slate-200 border-slate-400 text-slate-700"
                 }`}
               >
                 Seasonal Corridors ({showSeasonalEdges ? "ON" : "OFF"})
               </button>
             </div>
-            <div className="text-xs font-mono text-stone-400">
+            <div className="text-xs font-mono">
               Selected Node:{" "}
-              <span className="text-amber-300 font-bold">
+              <span className="font-bold text-red-800 bg-amber-200/80 px-2 py-0.5 rounded border border-amber-600/50">
                 {selectedNode?.name ?? "None"}
               </span>
             </div>
           </div>
 
-          <div className="h-[560px] relative isolate z-0">
+          <div className="h-[560px] relative isolate z-0 rounded-2xl shadow-xl ring-2 ring-amber-900/30">
             <DynamicMapViewer
               nodes={game.nodes}
               season={game.currentSeason}
@@ -690,46 +883,47 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
           {selectedNode && (
             <div
               id="tour-node-dossier"
-              className="bg-stone-900/80 border border-stone-800 rounded-xl p-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs"
+              className={`${cardClass} grid grid-cols-1 md:grid-cols-3 gap-4 text-xs`}
             >
               <div>
-                <span className="text-[10px] font-mono uppercase text-stone-400">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-amber-800 font-bold">
                   Selected Theater Node
                 </span>
-                <h3 className="text-base font-bold text-amber-200 mt-0.5">
+                <h3 className="text-base font-serif font-bold mt-0.5">
                   {selectedNode.name}
                 </h3>
-                <p className="text-stone-400 mt-1">
-                  Type: <span className="text-stone-200">{selectedNode.nodeType}</span> •
-                  Region: <span className="text-stone-200">{selectedNode.region}</span>
+                <p className="mt-1 opacity-85">
+                  Type: <span className="font-semibold">{selectedNode.nodeType}</span>{" "}
+                  • Region:{" "}
+                  <span className="font-semibold">{selectedNode.region}</span>
                 </p>
-                <p className="text-stone-400">
+                <p className="opacity-80">
                   Coords:{" "}
-                  <span className="font-mono text-stone-300">
+                  <span className="font-mono">
                     {selectedNode.lat.toFixed(2)}°N,{" "}
                     {Math.abs(selectedNode.lng).toFixed(2)}°W
                   </span>
                 </p>
                 {covenantedNodeIds.includes(selectedNode.id) && (
-                  <span className="inline-block mt-1.5 px-2 py-0.5 rounded bg-amber-950/90 border border-amber-700/80 text-amber-300 font-mono text-[10px]">
+                  <span className="inline-block mt-1.5 px-2 py-0.5 rounded bg-purple-900 text-purple-100 border border-purple-500 font-mono text-[10px]">
                     Protected by Easton / Council Covenant
                   </span>
                 )}
               </div>
 
               <div>
-                <span className="text-[10px] font-mono uppercase text-stone-400">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-amber-800 font-bold">
                   Control &amp; Resource Yield
                 </span>
-                <div className="mt-1 font-semibold text-stone-100">
+                <div className="mt-1 font-semibold">
                   Controller:{" "}
-                  <span className="text-amber-300">
+                  <span className="font-bold text-red-800">
                     {selectedNode.controller?.type ?? "Neutral / Contested"}
                   </span>
                 </div>
-                <div className="mt-1 text-stone-300">
+                <div className="mt-1">
                   Commodity:{" "}
-                  <span className="font-mono text-emerald-300">
+                  <span className="font-mono font-bold text-emerald-800">
                     {selectedNode.resourceType ?? "NONE"} (+
                     {selectedNode.resourceYield} £/turn)
                   </span>
@@ -737,7 +931,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
               </div>
 
               <div>
-                <span className="text-[10px] font-mono uppercase text-stone-400">
+                <span className="text-[10px] font-mono uppercase tracking-wider text-amber-800 font-bold">
                   Stationed Units ({selectedNode.units?.length ?? 0})
                 </span>
                 <div className="mt-1 space-y-1 max-h-24 overflow-y-auto">
@@ -745,16 +939,16 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     selectedNode.units.map((u: any) => (
                       <div
                         key={u.id}
-                        className="flex items-center justify-between bg-stone-950 px-2 py-1 rounded border border-stone-800 font-mono text-[11px]"
+                        className="flex items-center justify-between bg-[#121e36] text-amber-50 px-2.5 py-1 rounded-lg border border-amber-500/40 font-mono text-[11px]"
                       >
                         <span>{u.unitType}</span>
-                        <span className="text-amber-300">
+                        <span className="text-amber-300 font-bold">
                           {u.strength} str • {u.discipline}x
                         </span>
                       </div>
                     ))
                   ) : (
-                    <div className="text-stone-500 italic">
+                    <div className="italic opacity-60">
                       No garrisoned formations
                     </div>
                   )}
@@ -762,18 +956,18 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
               </div>
 
               {/* Node Quick-Action Command Strip */}
-              <div className="md:col-span-3 pt-2.5 border-t border-stone-800/80 flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 text-[11px] font-mono text-stone-400">
-                  <Zap className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="uppercase tracking-wider font-bold text-amber-200">
-                    Quick Directive:
+              <div className="md:col-span-3 pt-2.5 border-t border-amber-900/20 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-mono">
+                  <Zap className="w-3.5 h-3.5 text-amber-600" />
+                  <span className="uppercase tracking-wider font-bold">
+                    1-Click Quick Directive:
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => handleQuickAction("MOVE")}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-amber-200 border border-stone-700 text-[11px] font-semibold cursor-pointer transition shadow-sm hover:border-amber-600"
+                    className="syw-btn-quick"
                     title="Pre-fill movement order to adjacent node"
                   >
                     <Swords className="w-3 h-3 text-red-400" /> March Force
@@ -781,7 +975,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                   <button
                     type="button"
                     onClick={() => handleQuickAction("RECRUIT")}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-amber-200 border border-stone-700 text-[11px] font-semibold cursor-pointer transition shadow-sm hover:border-amber-600"
+                    className="syw-btn-quick"
                     title="Muster provincial militia or garrison"
                   >
                     <Users className="w-3 h-3 text-emerald-400" /> Muster
@@ -789,7 +983,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                   <button
                     type="button"
                     onClick={() => handleQuickAction("EXTRACT")}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-amber-200 border border-stone-700 text-[11px] font-semibold cursor-pointer transition shadow-sm hover:border-amber-600"
+                    className="syw-btn-quick"
                     title="Harvest regional commodity revenue"
                   >
                     <Wheat className="w-3 h-3 text-amber-400" /> Harvest Yield
@@ -797,10 +991,10 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                   <button
                     type="button"
                     onClick={() => handleQuickAction("COVENANT_BOUNDARY")}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-purple-200 border border-purple-800/80 text-[11px] font-semibold cursor-pointer transition shadow-sm hover:border-purple-600"
+                    className="syw-btn-quick"
                     title="Establish protective covenant line"
                   >
-                    <ShieldCheck className="w-3 h-3 text-purple-400" /> Covenant
+                    <ShieldCheck className="w-3 h-3 text-purple-300" /> Covenant
                   </button>
                   {(selectedNode.nodeType === "SEA_ZONE" ||
                     selectedNode.region === "CARIBBEAN" ||
@@ -813,10 +1007,10 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     <button
                       type="button"
                       onClick={() => handleQuickAction("AMPHIBIOUS_ASSAULT")}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-sky-950/80 hover:bg-sky-900 text-sky-200 border border-sky-700 text-[11px] font-semibold cursor-pointer transition shadow-sm hover:border-sky-500"
+                      className="syw-btn-quick"
                       title="Launch naval landing & bombardment"
                     >
-                      <Anchor className="w-3 h-3 text-sky-400" /> Amphibious
+                      <Anchor className="w-3 h-3 text-sky-300" /> Amphibious
                     </button>
                   )}
                   {selectedNode.controller?.id !== activeFaction.id && (
@@ -825,13 +1019,15 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                       onClick={() => {
                         setActiveTab("DISPATCHES");
                         if (selectedNode.controller?.id) {
-                          setDispatchTargetFactionId(selectedNode.controller.id);
+                          setDispatchTargetFactionId(
+                            selectedNode.controller.id
+                          );
                         }
                       }}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-indigo-950/80 hover:bg-indigo-900 text-indigo-200 border border-indigo-700 text-[11px] font-semibold cursor-pointer transition shadow-sm hover:border-indigo-500"
+                      className="syw-btn-quick"
                       title="Send diplomatic courier to occupying faction"
                     >
-                      <Send className="w-3 h-3 text-indigo-400" /> Courier
+                      <Send className="w-3 h-3 text-indigo-300" /> Courier
                     </button>
                   )}
                 </div>
@@ -843,7 +1039,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
           {combatLogs.length > 0 && (
             <div
               id="tour-telemetry-feed"
-              className="bg-stone-900/90 border border-amber-800/50 rounded-xl p-3.5 space-y-2.5 text-xs shadow-xl"
+              className="bg-[#121e36] border-2 border-amber-500/60 rounded-2xl p-4 space-y-2.5 text-xs text-slate-100 shadow-xl"
               data-testid="tactical-combat-attrition-feed"
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
@@ -852,7 +1048,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     <Flame className="w-3.5 h-3.5 text-amber-400" />
                     Tactical &amp; Environmental Telemetry ({combatLogs.length})
                   </span>
-                  <div className="flex items-center gap-1 bg-stone-950 px-1.5 py-0.5 rounded border border-stone-800 text-[10px] font-mono">
+                  <div className="flex items-center gap-1 bg-slate-950 px-1.5 py-0.5 rounded-lg border border-slate-700 text-[10px] font-mono">
                     {(
                       [
                         { id: "ALL", label: `ALL (${combatLogs.length})` },
@@ -868,8 +1064,8 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                         onClick={() => setFeedFilter(f.id)}
                         className={`px-1.5 py-0.5 rounded transition cursor-pointer ${
                           feedFilter === f.id
-                            ? "bg-amber-600 text-stone-950 font-bold"
-                            : "text-stone-400 hover:text-stone-200"
+                            ? "bg-amber-500 text-slate-950 font-bold"
+                            : "text-slate-400 hover:text-white"
                         }`}
                       >
                         {f.label}
@@ -880,7 +1076,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                 <button
                   type="button"
                   onClick={() => setCombatLogs([])}
-                  className="text-[10px] text-stone-400 hover:text-stone-200 font-mono underline"
+                  className="text-[10px] text-amber-300 hover:text-white font-mono underline cursor-pointer"
                 >
                   Clear Feed
                 </button>
@@ -890,21 +1086,21 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                   filteredCombatLogs.map((log, i) => (
                     <div
                       key={i}
-                      className={`px-2.5 py-1 rounded border flex items-start justify-between gap-2 ${
+                      className={`px-2.5 py-1.5 rounded-lg border flex items-start justify-between gap-2 ${
                         log.includes("[Winter Freeze]") ||
                         log.includes("[Hurricane]")
-                          ? "bg-cyan-950/60 border-cyan-800 text-cyan-200"
+                          ? "bg-cyan-950/80 border-cyan-700 text-cyan-100"
                           : log.includes("[Naval Blockade]") ||
                             log.includes("[Naval Interception]")
-                          ? "bg-sky-950/60 border-sky-800 text-sky-200"
+                          ? "bg-sky-950/80 border-sky-700 text-sky-100"
                           : log.includes("[Covenant Violation]") ||
                             log.includes("[Declaration of War]")
-                          ? "bg-red-950/60 border-red-800 text-red-200"
-                          : "bg-stone-950 border-stone-800 text-stone-200"
+                          ? "bg-red-950/80 border-red-700 text-red-100"
+                          : "bg-slate-900 border-slate-700 text-slate-100"
                       }`}
                     >
                       <span>{log}</span>
-                      <span className="text-[9px] uppercase px-1.5 py-0.2 rounded font-bold shrink-0 bg-stone-900 border border-stone-700 text-stone-400">
+                      <span className="text-[9px] uppercase px-1.5 py-0.5 rounded font-bold shrink-0 bg-slate-950 border border-slate-700 text-amber-300">
                         {log.includes("[Winter Freeze]")
                           ? "FREEZE"
                           : log.includes("[Hurricane]")
@@ -918,7 +1114,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     </div>
                   ))
                 ) : (
-                  <div className="text-stone-500 italic py-1 text-center">
+                  <div className="text-slate-400 italic py-1 text-center">
                     No entries matching filter &quot;{feedFilter}&quot;
                   </div>
                 )}
@@ -930,10 +1126,10 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
         {/* Right Column: Faction & Role Command Console */}
         <div className="lg:col-span-5 flex flex-col gap-4">
           {/* Active Faction & Role Selector Card */}
-          <div id="tour-faction-selector" className="syw-card space-y-3">
+          <div id="tour-faction-selector" className={`${cardClass} space-y-3`}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-[10px] font-mono uppercase tracking-wider text-stone-400 mb-1">
+                <label className="block text-[10px] font-mono uppercase tracking-wider font-bold text-amber-900 mb-1">
                   Active Faction (10 Powers)
                 </label>
                 <select
@@ -941,7 +1137,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                   onChange={(e) =>
                     setSelectedFactionType(e.target.value as FactionType)
                   }
-                  className="w-full px-3 py-2 rounded-lg bg-stone-950 border border-stone-700 text-xs font-semibold text-amber-100"
+                  className={selectClass}
                 >
                   {game.factions.map((f: any) => (
                     <option key={f.id} value={f.type}>
@@ -952,7 +1148,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
               </div>
 
               <div>
-                <label className="block text-[10px] font-mono uppercase tracking-wider text-stone-400 mb-1">
+                <label className="block text-[10px] font-mono uppercase tracking-wider font-bold text-amber-900 mb-1">
                   Role Seat (3 per Faction)
                 </label>
                 <select
@@ -960,7 +1156,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                   onChange={(e) =>
                     setSelectedRoleType(e.target.value as RoleType)
                   }
-                  className="w-full px-3 py-2 rounded-lg bg-stone-950 border border-stone-700 text-xs font-semibold text-amber-100"
+                  className={selectClass}
                 >
                   <option value={RoleType.EXECUTIVE}>
                     EXECUTIVE (Grand Strategy)
@@ -981,39 +1177,41 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                 id="tour-faction-ledger"
                 className="grid grid-cols-5 gap-2 pt-1 text-xs font-mono"
               >
-                <div className="syw-ledger-stat">
-                  <div className="text-[10px] text-stone-400 flex items-center gap-1">
-                    <Coins className="w-3 h-3 text-amber-400" /> Treasury
+                <div className={ledgerStatClass}>
+                  <div className="text-[10px] opacity-75 flex items-center gap-1 font-bold">
+                    <Coins className="w-3 h-3 text-amber-600" /> Treasury
                   </div>
-                  <div className="text-sm font-bold text-amber-300">
+                  <div className="text-sm font-bold text-amber-700">
                     {activeFaction.treasury} £
                   </div>
                 </div>
-                <div className="syw-ledger-stat">
-                  <div className="text-[10px] text-stone-400">Debt</div>
-                  <div className="text-sm font-bold text-red-300">
+                <div className={ledgerStatClass}>
+                  <div className="text-[10px] opacity-75 font-bold">Debt</div>
+                  <div className="text-sm font-bold text-red-700">
                     {activeFaction.debt} £
                   </div>
                 </div>
-                <div className="syw-ledger-stat">
-                  <div className="text-[10px] text-stone-400 flex items-center gap-1">
-                    <Flame className="w-3 h-3 text-orange-400" /> Unrest
+                <div className={ledgerStatClass}>
+                  <div className="text-[10px] opacity-75 flex items-center gap-1 font-bold">
+                    <Flame className="w-3 h-3 text-orange-600" /> Unrest
                   </div>
-                  <div className="text-sm font-bold text-orange-300">
+                  <div className="text-sm font-bold text-orange-700">
                     {activeFaction.unrestIndex}%
                   </div>
                 </div>
-                <div className="syw-ledger-stat">
-                  <div className="text-[10px] text-stone-400 flex items-center gap-1">
-                    <Award className="w-3 h-3 text-emerald-400" /> Standing
+                <div className={ledgerStatClass}>
+                  <div className="text-[10px] opacity-75 flex items-center gap-1 font-bold">
+                    <Award className="w-3 h-3 text-emerald-700" /> Standing
                   </div>
-                  <div className="text-sm font-bold text-emerald-300">
+                  <div className="text-sm font-bold text-emerald-800">
                     {activeFaction.standingPoints} pts
                   </div>
                 </div>
-                <div className="syw-ledger-stat">
-                  <div className="text-[10px] text-stone-400">Assembly</div>
-                  <div className="text-sm font-bold text-sky-300">
+                <div className={ledgerStatClass}>
+                  <div className="text-[10px] opacity-75 font-bold">
+                    Assembly
+                  </div>
+                  <div className="text-sm font-bold text-sky-800">
                     {activeFaction.assemblySupport ?? 50}%
                   </div>
                 </div>
@@ -1023,12 +1221,12 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
             {activeRole && (
               <div
                 id="tour-role-doctrine"
-                className="syw-subcard text-xs space-y-2.5"
+                className={`${subcardClass} text-xs space-y-2.5`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-serif font-bold text-amber-200 text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-serif font-bold text-sm">
                         {activeRole.title}
                       </span>
                       <span
@@ -1040,8 +1238,9 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                         {earnedFactionVP}/30
                       </span>
                     </div>
-                    <span className="block text-[11px] text-stone-300 mt-0.5 leading-snug">
-                      {activeCharacterGuide.playerBriefing}
+                    <span className="block text-[11px] opacity-85 mt-0.5 leading-snug">
+                      <strong>Playstyle Strategy:</strong>{" "}
+                      {activeCharacterGuide.strategicPlaystyle}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1051,67 +1250,59 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                         setActiveTab("ADVISOR");
                         handleInvokeAI(BotBehavior.ADVISOR);
                       }}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-indigo-950 hover:bg-indigo-900 border border-indigo-700/80 text-indigo-200 font-mono text-[10px] cursor-pointer transition"
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#121e36] hover:bg-[#1e325c] border border-amber-500/50 text-amber-200 font-mono text-[10px] font-bold cursor-pointer transition shadow-xs"
                       title="Request immediate 150-word AI strategy briefing"
                     >
-                      <Sparkles className="w-3 h-3 text-indigo-400" /> Consult AI
+                      <Sparkles className="w-3 h-3 text-amber-400" /> Consult AI
                     </button>
-                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-stone-800 text-stone-200 border border-stone-700">
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-[#121e36] text-amber-100 border border-slate-700">
                       {activeRole.controller} • {activeRole.botBehavior}
                     </span>
                   </div>
                 </div>
 
-                {/* Character Victory Point Objectives Checklist */}
+                {/* Compact Role Objectives Checklist inside Command Desk */}
                 <div
-                  className="pt-2 border-t border-stone-800/80 space-y-1.5"
+                  className="pt-2 border-t border-amber-900/20 space-y-1.5"
                   data-testid="character-objectives-panel"
                 >
-                  <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-amber-300/90 font-bold">
-                    <span>Your Character Objectives &amp; Victory Points</span>
-                    <span className="text-stone-400">
-                      Complete Goals to Score VP
-                    </span>
+                  <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider font-bold">
+                    <span>Active Character Objectives Checklist</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsTourOpen(true)}
+                      className="text-red-800 hover:underline cursor-pointer font-bold"
+                    >
+                      View All 30 Character VPs →
+                    </button>
                   </div>
-                  <div className="space-y-1.5">
+                  <div className="space-y-1">
                     {evaluatedCharacterObjectives.map((obj) => (
                       <div
                         key={obj.id}
-                        className={
-                          obj.isCompleted
-                            ? "syw-objective-card-completed"
-                            : "syw-objective-card"
-                        }
+                        className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-lg bg-[#fffdf9] border border-amber-900/20 text-slate-900"
                       >
-                        <div className="flex items-center justify-between gap-2">
-                          <div className="flex items-center gap-1.5 font-semibold text-stone-100">
-                            {obj.isCompleted ? (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                            ) : (
-                              <Circle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-                            )}
-                            <span>{obj.title}</span>
-                          </div>
-                          <div className="flex items-center gap-1.5 shrink-0">
-                            <span className="text-[10px] font-mono text-stone-400">
-                              {obj.progressText}
-                            </span>
-                            <span
-                              className={
-                                obj.isCompleted
-                                  ? "syw-vp-badge-completed"
-                                  : "syw-vp-badge"
-                              }
-                            >
-                              +{obj.victoryPoints} VP
-                            </span>
-                          </div>
+                        <div className="flex items-center gap-1.5 font-semibold text-[11px] truncate">
+                          {obj.isCompleted ? (
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                          ) : (
+                            <Circle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
+                          )}
+                          <span className="truncate">{obj.title}</span>
                         </div>
-                        <p className="text-[11px] text-stone-300 leading-snug pl-5">
-                          {obj.description}
-                        </p>
-                        <div className="text-[10px] font-mono text-emerald-300/90 pl-5">
-                          How to Achieve: {obj.howToComplete}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[10px] font-mono text-slate-600">
+                            {obj.progressText}
+                          </span>
+                          <span
+                            className={
+                              obj.isCompleted
+                                ? "syw-vp-badge-completed"
+                                : "syw-vp-badge"
+                            }
+                          >
+                            +{obj.victoryPoints} VP
+                          </span>
                         </div>
                       </div>
                     ))}
@@ -1120,7 +1311,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
 
                 {activeRole.strategicObjective && (
                   <div
-                    className="flex items-center justify-between pt-1.5 border-t border-stone-800/80 text-[11px] font-mono text-purple-300"
+                    className="flex items-center justify-between pt-1.5 border-t border-amber-900/20 text-[11px] font-mono font-semibold text-purple-900"
                     data-testid="role-strategic-objective"
                   >
                     <span>
@@ -1128,7 +1319,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                       {activeRole.strategicObjective.campaignName ??
                         activeRole.strategicObjective.objectiveType}
                     </span>
-                    <span className="px-1.5 py-0.5 rounded bg-purple-950 border border-purple-800 text-[10px]">
+                    <span className="px-2 py-0.5 rounded bg-purple-900 text-purple-100 text-[10px]">
                       {activeRole.strategicObjective.status} (T
                       {activeRole.strategicObjective.targetDeadlineTurn ?? "?"})
                     </span>
@@ -1139,10 +1330,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
           </div>
 
           {/* Navigation Tabs */}
-          <div
-            id="tour-command-tabs"
-            className="grid grid-cols-4 gap-1 bg-stone-900 p-1 rounded-xl border border-stone-800 text-xs font-semibold"
-          >
+          <div id="tour-command-tabs" className="syw-tab-bar">
             {(
               [
                 { id: "ORDERS", label: "Orders", icon: Shield },
@@ -1159,8 +1347,8 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                   onClick={() => setActiveTab(t.id)}
                   className={`flex items-center justify-center gap-1.5 py-2 rounded-lg transition cursor-pointer ${
                     activeTab === t.id
-                      ? "bg-amber-600 text-stone-950 font-bold"
-                      : "text-stone-400 hover:text-stone-200"
+                      ? "bg-amber-500 text-slate-950 font-bold shadow-sm"
+                      : "text-amber-100/80 hover:text-white hover:bg-slate-800/60"
                   }`}
                 >
                   <Icon className="w-3.5 h-3.5" /> {t.label}
@@ -1170,91 +1358,160 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
           </div>
 
           {/* Tab Content Area */}
-          <div className="bg-stone-900/90 border border-stone-800 rounded-xl p-4 flex-1 flex flex-col justify-between">
+          <div
+            className={`${cardClass} flex-1 flex flex-col justify-between`}
+          >
             {activeTab === "ORDERS" && (
               <div id="tour-orders-matrix" className="space-y-4">
-                <form onSubmit={handleSubmitOrder} className="space-y-3.5 text-xs">
-                  <div className="flex items-center justify-between border-b border-stone-800 pb-2">
-                    <div className="font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
-                      <Shield className="w-4 h-4 text-amber-400" />
+                <form
+                  onSubmit={handleSubmitOrder}
+                  className="space-y-3.5 text-xs"
+                >
+                  <div className="flex items-center justify-between border-b border-amber-900/20 pb-2">
+                    <div className="font-serif font-bold uppercase tracking-wider text-red-900 flex items-center gap-1.5">
+                      <Shield className="w-4 h-4 text-red-800" />
                       Issue Operational Directive ({selectedRoleType})
                     </div>
-                    <span className="text-[10px] font-mono text-stone-400">
-                      Active: <span className="text-amber-200 font-bold">{orderType}</span>
+                    <span className="text-[11px] font-mono">
+                      Active:{" "}
+                      <span className="font-bold text-red-900 bg-amber-200 px-1.5 py-0.5 rounded">
+                        {orderType}
+                      </span>
                     </span>
                   </div>
 
                   {/* Categorized Action Matrix */}
                   <div className="space-y-2">
-                    <label className="block text-[10px] font-mono uppercase tracking-wider text-stone-400">
+                    <label className="block text-[10px] font-mono uppercase tracking-wider font-bold opacity-75">
                       Select Order Classification &amp; Operational Objective
                     </label>
 
-                    {/* Operational Categories Tabs / Grid */}
                     <div className="space-y-2.5">
                       {[
                         {
                           category: "Military & Naval Operations",
                           badge: "Field & Fleet",
-                          color: "text-amber-300 border-amber-900/60",
+                          color: "text-red-900",
                           actions: [
-                            { type: "MOVE" as const, label: "March Force", desc: "Advance battalions", icon: Swords },
-                            { type: "RECRUIT" as const, label: "Muster Troops", desc: "Levy provincials", icon: Users },
-                            { type: "AMPHIBIOUS_ASSAULT" as const, label: "Amphibious", desc: "Landing & fleet guns", icon: Anchor },
-                            { type: "RAID" as const, label: "Frontier Raid", desc: "Irregular war party", icon: Crosshair },
+                            {
+                              type: "MOVE" as const,
+                              label: "March Force",
+                              desc: "Advance battalions",
+                              icon: Swords,
+                            },
+                            {
+                              type: "RECRUIT" as const,
+                              label: "Muster Troops",
+                              desc: "Levy provincials",
+                              icon: Users,
+                            },
+                            {
+                              type: "AMPHIBIOUS_ASSAULT" as const,
+                              label: "Amphibious",
+                              desc: "Landing & fleet guns",
+                              icon: Anchor,
+                            },
+                            {
+                              type: "RAID" as const,
+                              label: "Frontier Raid",
+                              desc: "Irregular war party",
+                              icon: Crosshair,
+                            },
                           ],
                         },
                         {
                           category: "Sovereignty & Treaties",
                           badge: "Crown & Council",
-                          color: "text-purple-300 border-purple-900/60",
+                          color: "text-purple-900",
                           actions: [
-                            { type: "COVENANT_BOUNDARY" as const, label: "Covenant Line", desc: "Easton reservation", icon: ShieldCheck },
-                            { type: "DECLARE_WAR" as const, label: "Declare War", desc: "Open hostilities", icon: ShieldAlert },
-                            { type: "TREATY_CONFERENCE" as const, label: "Peace Congress", desc: "Convene peace talks", icon: Flag },
+                            {
+                              type: "COVENANT_BOUNDARY" as const,
+                              label: "Covenant Line",
+                              desc: "Easton reservation",
+                              icon: ShieldCheck,
+                            },
+                            {
+                              type: "DECLARE_WAR" as const,
+                              label: "Declare War",
+                              desc: "Open hostilities",
+                              icon: ShieldAlert,
+                            },
+                            {
+                              type: "TREATY_CONFERENCE" as const,
+                              label: "Peace Congress",
+                              desc: "Convene peace talks",
+                              icon: Flag,
+                            },
                           ],
                         },
                         {
                           category: "Economy & Governance",
                           badge: "Customs & Bullion",
-                          color: "text-emerald-300 border-emerald-900/60",
+                          color: "text-emerald-900",
                           actions: [
-                            { type: "EXTRACT" as const, label: "Harvest Yield", desc: "Collect furs & timber", icon: Wheat },
-                            { type: "TRADE" as const, label: "Merchant Convoy", desc: "Dispatch trade mission", icon: Coins },
-                            { type: "SUBSIDIZE" as const, label: "Allied Subsidies", desc: "Transfer war bullion", icon: Award },
-                            { type: "ASSEMBLY_NEGOTIATION" as const, label: "Assembly", desc: "Lobby legislature", icon: Landmark },
+                            {
+                              type: "EXTRACT" as const,
+                              label: "Harvest Yield",
+                              desc: "Collect furs & timber",
+                              icon: Wheat,
+                            },
+                            {
+                              type: "TRADE" as const,
+                              label: "Merchant Convoy",
+                              desc: "Dispatch trade mission",
+                              icon: Coins,
+                            },
+                            {
+                              type: "SUBSIDIZE" as const,
+                              label: "Allied Subsidies",
+                              desc: "Transfer war bullion",
+                              icon: Award,
+                            },
+                            {
+                              type: "ASSEMBLY_NEGOTIATION" as const,
+                              label: "Assembly",
+                              desc: "Lobby legislature",
+                              icon: Landmark,
+                            },
                           ],
                         },
                       ].map((cat) => (
                         <div key={cat.category} className="space-y-1">
-                          <div className="flex items-center justify-between text-[10px] font-mono text-stone-400">
-                            <span className={cat.color.split(" ")[0]}>
-                              {cat.category}
-                            </span>
-                            <span className="text-stone-500">{cat.badge}</span>
+                          <div className="flex items-center justify-between text-[10px] font-mono font-bold">
+                            <span className={cat.color}>{cat.category}</span>
+                            <span className="opacity-65">{cat.badge}</span>
                           </div>
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                             {cat.actions.map((act) => {
                               const isSelected = orderType === act.type;
                               const Icon = act.icon;
+                              const tileClass = isSelected
+                                ? isDark
+                                  ? "syw-action-tile-selected-dark"
+                                  : "syw-action-tile-selected"
+                                : isDark
+                                ? "syw-action-tile-dark"
+                                : "syw-action-tile";
                               return (
                                 <button
                                   key={act.type}
                                   type="button"
                                   onClick={() => setOrderType(act.type)}
-                                  className={`p-2 rounded-lg border text-left transition cursor-pointer flex flex-col justify-between ${
-                                    isSelected
-                                      ? "bg-amber-950/80 border-amber-500 ring-1 ring-amber-500/60 text-amber-100 shadow-md"
-                                      : "bg-stone-950 hover:bg-stone-850 border-stone-800 text-stone-300 hover:border-stone-700"
-                                  }`}
+                                  className={tileClass}
                                 >
                                   <div className="flex items-center justify-between gap-1 mb-1">
-                                    <span className="font-semibold text-[11px] flex items-center gap-1">
-                                      <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-amber-400" : "text-stone-400"}`} />
+                                    <span className="font-bold text-[11px] flex items-center gap-1">
+                                      <Icon
+                                        className={`w-3.5 h-3.5 ${
+                                          isSelected
+                                            ? "text-red-800"
+                                            : "text-amber-700"
+                                        }`}
+                                      />
                                       {act.label}
                                     </span>
                                   </div>
-                                  <span className="text-[10px] text-stone-400 leading-tight">
+                                  <span className="text-[10px] opacity-75 leading-tight">
                                     {act.desc}
                                   </span>
                                 </button>
@@ -1270,7 +1527,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                       <select
                         value={orderType}
                         onChange={(e) => setOrderType(e.target.value as any)}
-                        className="w-full px-2.5 py-1.5 rounded bg-stone-950 border border-stone-800 text-[11px] text-stone-300"
+                        className={selectClass}
                       >
                         <option value="MOVE">MOVE (Advance Formation)</option>
                         <option value="RECRUIT">RECRUIT (Muster Troops)</option>
@@ -1300,7 +1557,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                   {/* Treasury Allocation & Source Node */}
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div>
-                      <label className="block text-stone-400 mb-1 text-[11px]">
+                      <label className="block font-semibold mb-1 text-[11px]">
                         Allocated Treasury (£)
                       </label>
                       <div className="flex items-center gap-1.5">
@@ -1312,12 +1569,14 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                           onChange={(e) =>
                             setAllocatedTreasury(Number(e.target.value))
                           }
-                          className="w-full px-2.5 py-2 rounded bg-stone-950 border border-stone-700 text-stone-100 font-mono"
+                          className={`${inputClass} font-mono`}
                         />
                         <button
                           type="button"
-                          onClick={() => setAllocatedTreasury((prev) => Math.max(0, prev - 5))}
-                          className="px-2 py-2 rounded bg-stone-850 hover:bg-stone-800 border border-stone-700 text-stone-300 font-mono cursor-pointer"
+                          onClick={() =>
+                            setAllocatedTreasury((prev) => Math.max(0, prev - 5))
+                          }
+                          className="px-2.5 py-2 rounded-lg bg-[#121e36] text-amber-100 font-mono cursor-pointer"
                         >
                           -5
                         </button>
@@ -1325,39 +1584,44 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                           type="button"
                           onClick={() =>
                             setAllocatedTreasury((prev) =>
-                              Math.min(activeFaction?.treasury ?? 200, prev + 5)
+                              Math.min(
+                                activeFaction?.treasury ?? 200,
+                                prev + 5
+                              )
                             )
                           }
-                          className="px-2 py-2 rounded bg-stone-850 hover:bg-stone-800 border border-stone-700 text-stone-300 font-mono cursor-pointer"
+                          className="px-2.5 py-2 rounded-lg bg-[#121e36] text-amber-100 font-mono cursor-pointer"
                         >
                           +5
                         </button>
                       </div>
                     </div>
                     <div>
-                      <label className="block text-stone-400 mb-1 text-[11px]">
+                      <label className="block font-semibold mb-1 text-[11px]">
                         Source Theater Node (Staging Base)
                       </label>
                       <input
                         type="text"
                         readOnly
                         value={selectedNode?.name ?? ""}
-                        className="w-full px-2.5 py-2 rounded bg-stone-950/80 border border-stone-800 text-amber-300 font-semibold"
+                        className={`${inputClass} font-bold text-red-900`}
                       />
                     </div>
                   </div>
 
                   {/* Target Corridor Node with Adjacent Quick-Pills */}
                   <div className="space-y-1.5 pt-1">
-                    <label className="block text-stone-400 text-[11px]">
+                    <label className="block font-semibold text-[11px]">
                       Target Corridor Node (Operational Destination)
                     </label>
 
                     {adjacentNodes.length > 0 && (
-                      <div className="space-y-1 bg-stone-950/60 p-2 rounded-lg border border-stone-850">
-                        <div className="text-[10px] font-mono uppercase text-stone-400 flex items-center justify-between">
+                      <div className={`${subcardClass} space-y-1.5`}>
+                        <div className="text-[10px] font-mono uppercase font-bold flex items-center justify-between">
                           <span>Connected Adjacent Corridors:</span>
-                          <span className="text-stone-500">1-Click Quick Select</span>
+                          <span className="opacity-70">
+                            1-Click Quick Select
+                          </span>
                         </div>
                         <div className="flex flex-wrap gap-1.5">
                           {adjacentNodes.map((adj: any) => {
@@ -1380,18 +1644,22 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                                 key={adj.id}
                                 type="button"
                                 onClick={() => setTargetNodeId(adj.id)}
-                                className={`px-2 py-1 rounded text-[11px] font-mono border transition cursor-pointer flex items-center gap-1 ${
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-mono border transition cursor-pointer flex items-center gap-1 ${
                                   isTarget
-                                    ? "bg-amber-600 text-stone-950 font-bold border-amber-400 shadow-sm"
-                                    : "bg-stone-950 hover:bg-stone-850 text-stone-200 border-stone-750"
+                                    ? "bg-red-800 text-amber-50 font-bold border-red-950 shadow-sm"
+                                    : "bg-[#fffdf9] hover:bg-amber-100 text-slate-900 border-amber-900/30"
                                 }`}
                               >
                                 <span>{adj.name}</span>
                                 {isFrozen && (
-                                  <span title="Winter Freeze (2.5x Cost)">❄</span>
+                                  <span title="Winter Freeze (2.5x Cost)">
+                                    ❄
+                                  </span>
                                 )}
                                 {isHurricane && (
-                                  <span title="Hurricane Risk (1.75x Cost)">🌀</span>
+                                  <span title="Hurricane Risk (1.75x Cost)">
+                                    🌀
+                                  </span>
                                 )}
                                 {adj.nodeType === "SEA_ZONE" && (
                                   <span title="Naval Sea Lane">⚓</span>
@@ -1406,7 +1674,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     <select
                       value={targetNodeId}
                       onChange={(e) => setTargetNodeId(e.target.value)}
-                      className="w-full px-2.5 py-2 rounded bg-stone-950 border border-stone-700 text-stone-100 text-xs"
+                      className={selectClass}
                     >
                       <option value="">Adjacent Default Corridor</option>
                       {adjacentNodes.length > 0 && (
@@ -1434,7 +1702,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                   </div>
 
                   <div>
-                    <label className="block text-stone-400 mb-1 text-[11px]">
+                    <label className="block font-semibold mb-1 text-[11px]">
                       Strategic Reasoning (&le;100 chars)
                     </label>
                     <input
@@ -1442,14 +1710,14 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                       maxLength={100}
                       value={reasoning}
                       onChange={(e) => setReasoning(e.target.value)}
-                      className="w-full px-2.5 py-2 rounded bg-stone-950 border border-stone-700 text-stone-100 text-xs"
+                      className={inputClass}
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={isPending}
-                    className="w-full py-2.5 rounded-lg font-bold bg-amber-600 hover:bg-amber-500 text-stone-950 transition cursor-pointer shadow-lg hover:shadow-amber-900/30 flex items-center justify-center gap-2"
+                    className="w-full py-2.5 rounded-xl font-bold bg-gradient-to-r from-red-800 via-red-700 to-red-800 hover:from-red-700 hover:to-red-600 text-amber-50 border border-amber-400/60 transition cursor-pointer shadow-lg flex items-center justify-center gap-2"
                   >
                     <Send className="w-3.5 h-3.5" />
                     Commit Order to Turn {game.turnNumber} Queue
@@ -1457,12 +1725,13 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                 </form>
 
                 {/* Queued Orders List */}
-                <div className="border-t border-stone-800 pt-3">
-                  <div className="text-[11px] font-mono uppercase text-stone-400 mb-2 flex items-center justify-between">
+                <div className="border-t border-amber-900/20 pt-3">
+                  <div className="text-[11px] font-mono uppercase font-bold mb-2 flex items-center justify-between">
                     <span>
-                      Turn {game.turnNumber} Queued Orders ({game.orders?.length ?? 0})
+                      Turn {game.turnNumber} Queued Orders (
+                      {game.orders?.length ?? 0})
                     </span>
-                    <span className="text-stone-500 text-[10px]">
+                    <span className="opacity-70 text-[10px]">
                       Phase: {game.currentPhase}
                     </span>
                   </div>
@@ -1470,21 +1739,21 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     {game.orders?.slice(0, 10).map((o: any) => (
                       <div
                         key={o.id}
-                        className="p-2 rounded bg-stone-950 border border-stone-800 text-xs flex items-center justify-between"
+                        className="p-2 rounded-lg bg-[#fffdf9] border border-amber-900/25 text-slate-900 text-xs flex items-center justify-between"
                       >
                         <div>
-                          <span className="font-mono font-bold text-amber-300">
+                          <span className="font-mono font-bold text-red-800">
                             [{o.orderType}]
                           </span>{" "}
-                          <span className="text-stone-300">
+                          <span className="text-slate-700">
                             {o.payload?.reasoning || "Tactical directive"}
                           </span>
                         </div>
                         <span
-                          className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                          className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-full ${
                             o.isExecuted
-                              ? "bg-emerald-950 text-emerald-300"
-                              : "bg-amber-950 text-amber-300"
+                              ? "bg-emerald-100 text-emerald-900 border border-emerald-500"
+                              : "bg-amber-100 text-amber-950 border border-amber-500"
                           }`}
                         >
                           {o.isExecuted ? "EXECUTED" : "PENDING"}
@@ -1499,16 +1768,17 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
             {activeTab === "ADVISOR" && (
               <div id="tour-ai-advisor" className="space-y-4 text-xs">
                 <div className="space-y-1">
-                  <div className="font-bold uppercase tracking-wider text-amber-300">
-                    Token-Bounded DeepSeek AI Controller (O(1) ~1,500 Token Budget)
+                  <div className="font-serif font-bold uppercase tracking-wider text-red-900">
+                    Token-Bounded DeepSeek AI Controller (O(1) ~1,500 Token
+                    Budget)
                   </div>
-                  <p className="text-stone-400">
+                  <p className="opacity-80">
                     Autonomous Executive seats route to{" "}
-                    <code className="text-purple-300">
+                    <code className="font-bold text-purple-900">
                       deepseek-v4-pro (thinking: enabled)
                     </code>
                     . Military, Commercial, and Advisor briefings route to{" "}
-                    <code className="text-cyan-300">
+                    <code className="font-bold text-sky-900">
                       deepseek-flash (thinking: disabled)
                     </code>
                     .
@@ -1521,7 +1791,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     disabled={isPending}
                     onClick={() => handleInvokeAI(BotBehavior.ADVISOR)}
                     data-testid="btn-generate-advisor-briefing"
-                    className="py-2.5 px-3 rounded-lg font-bold bg-indigo-600 hover:bg-indigo-500 text-white transition cursor-pointer"
+                    className="py-2.5 px-3 rounded-xl font-bold bg-[#121e36] hover:bg-[#1d3158] text-amber-100 border border-amber-500/50 transition cursor-pointer shadow-md"
                   >
                     Request 150-Word Advisor Briefing
                   </button>
@@ -1530,40 +1800,42 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     disabled={isPending}
                     onClick={() => handleInvokeAI(BotBehavior.AUTONOMOUS)}
                     data-testid="btn-generate-autonomous-orders"
-                    className="py-2.5 px-3 rounded-lg font-bold bg-purple-600 hover:bg-purple-500 text-white transition cursor-pointer"
+                    className="py-2.5 px-3 rounded-xl font-bold bg-purple-900 hover:bg-purple-800 text-purple-50 border border-purple-400/50 transition cursor-pointer shadow-md"
                   >
                     Execute Autonomous JSON Orders
                   </button>
                 </div>
 
                 {aiResponse && (
-                  <div className="bg-stone-950 border border-stone-800 rounded-lg p-3 space-y-2.5 max-h-80 overflow-y-auto">
-                    <div className="flex items-center justify-between border-b border-stone-800 pb-2 font-mono text-[11px]">
+                  <div className="bg-[#121e36] text-slate-100 border-2 border-amber-500/60 rounded-xl p-3.5 space-y-2.5 max-h-80 overflow-y-auto shadow-inner">
+                    <div className="flex items-center justify-between border-b border-slate-700 pb-2 font-mono text-[11px]">
                       <span className="text-amber-300 font-bold">
                         Model: {aiResponse.modelConfig?.model} (thinking:{" "}
                         {aiResponse.modelConfig?.extra_body?.thinking?.type})
                       </span>
                       <span className="text-emerald-300">
                         Prompt Budget: {aiResponse.estimatedPromptTokens} tokens
-                        (Top {aiResponse.contextPayload?.recentActiveEvents?.length ?? 0}{" "}
+                        (Top{" "}
+                        {aiResponse.contextPayload?.recentActiveEvents
+                          ?.length ?? 0}{" "}
                         active events)
                       </span>
                     </div>
 
                     {aiResponse.reasoningScratchpad && (
-                      <div className="p-2 rounded bg-purple-950/40 border border-purple-800/60 text-purple-200 font-mono text-[11px]">
+                      <div className="p-2 rounded bg-purple-950/60 border border-purple-700 text-purple-200 font-mono text-[11px]">
                         {aiResponse.reasoningScratchpad}
                       </div>
                     )}
 
                     {aiResponse.advisorBriefing && (
-                      <div className="text-stone-200 leading-relaxed font-serif text-sm">
+                      <div className="text-amber-50 leading-relaxed font-serif text-sm">
                         {aiResponse.advisorBriefing}
                       </div>
                     )}
 
                     {aiResponse.orders && (
-                      <pre className="text-[11px] font-mono text-cyan-200 overflow-x-auto bg-stone-900 p-2 rounded">
+                      <pre className="text-[11px] font-mono text-cyan-200 overflow-x-auto bg-slate-950 p-2 rounded">
                         {JSON.stringify(aiResponse.orders, null, 2)}
                       </pre>
                     )}
@@ -1575,13 +1847,13 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
             {activeTab === "DISPATCHES" && (
               <div id="tour-courier-system" className="space-y-4 text-xs">
                 <form onSubmit={handleSendDispatch} className="space-y-3">
-                  <div className="font-bold uppercase tracking-wider text-amber-300">
+                  <div className="font-serif font-bold uppercase tracking-wider text-red-900">
                     Asynchronous Diplomatic Courier Service
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="block text-stone-400 mb-1">
+                      <label className="block font-semibold mb-1">
                         Recipient Faction
                       </label>
                       <select
@@ -1589,7 +1861,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                         onChange={(e) =>
                           setDispatchTargetFactionId(e.target.value)
                         }
-                        className="w-full px-2.5 py-2 rounded bg-stone-950 border border-stone-700 text-stone-100"
+                        className={selectClass}
                       >
                         {game.factions
                           .filter((f: any) => f.id !== activeFaction?.id)
@@ -1601,7 +1873,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-stone-400 mb-1">
+                      <label className="block font-semibold mb-1">
                         Courier Transit Delay (Turns)
                       </label>
                       <input
@@ -1612,20 +1884,20 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                         onChange={(e) =>
                           setDispatchDelay(Number(e.target.value))
                         }
-                        className="w-full px-2.5 py-2 rounded bg-stone-950 border border-stone-700 text-stone-100"
+                        className={inputClass}
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-stone-400 mb-1">
+                    <label className="block font-semibold mb-1">
                       Encrypted Diplomatic Missive
                     </label>
                     <textarea
                       rows={3}
                       value={dispatchContent}
                       onChange={(e) => setDispatchContent(e.target.value)}
-                      className="w-full px-2.5 py-2 rounded bg-stone-950 border border-stone-700 text-stone-100"
+                      className={inputClass}
                     />
                   </div>
 
@@ -1633,7 +1905,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     <button
                       type="submit"
                       disabled={isPending}
-                      className="py-2 rounded-lg font-bold bg-amber-600 hover:bg-amber-500 text-stone-950 cursor-pointer"
+                      className="syw-btn-primary py-2.5"
                     >
                       Send Courier Packet
                     </button>
@@ -1641,36 +1913,36 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                       type="button"
                       disabled={isPending}
                       onClick={handleSignTreaty}
-                      className="py-2 rounded-lg font-bold bg-emerald-700 hover:bg-emerald-600 text-white cursor-pointer"
+                      className="py-2.5 rounded-lg font-bold bg-emerald-800 hover:bg-emerald-700 text-white cursor-pointer shadow-md"
                     >
                       Ratify Peace Treaty (Supersede War)
                     </button>
                   </div>
                 </form>
 
-                <div className="border-t border-stone-800 pt-3">
-                  <div className="text-[11px] font-mono uppercase text-stone-400 mb-2">
+                <div className="border-t border-amber-900/20 pt-3">
+                  <div className="text-[11px] font-mono uppercase font-bold mb-2">
                     Courier Dispatches ({game.dispatches?.length ?? 0})
                   </div>
                   <div className="space-y-1.5 max-h-44 overflow-y-auto">
                     {game.dispatches?.map((d: any) => (
                       <div
                         key={d.id}
-                        className="p-2 rounded bg-stone-950 border border-stone-800 text-xs space-y-1"
+                        className="p-2.5 rounded-xl bg-[#fffdf9] border border-amber-900/25 text-slate-900 text-xs space-y-1"
                       >
                         <div className="flex items-center justify-between font-mono text-[10px]">
-                          <span className="text-amber-300">
+                          <span className="font-bold text-amber-900">
                             Delay: {d.courierDelay}t • Remaining:{" "}
                             {d.turnsRemaining}t
                           </span>
                           <span
-                            className={
+                            className={`font-bold px-2 py-0.5 rounded-full ${
                               d.intercepted
-                                ? "text-red-400"
+                                ? "bg-red-100 text-red-900"
                                 : d.turnsRemaining === 0
-                                ? "text-emerald-400"
-                                : "text-sky-400"
-                            }
+                                ? "bg-emerald-100 text-emerald-900"
+                                : "bg-sky-100 text-sky-900"
+                            }`}
                           >
                             {d.intercepted
                               ? "INTERCEPTED"
@@ -1679,7 +1951,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                               : "IN TRANSIT"}
                           </span>
                         </div>
-                        <p className="text-stone-300">{d.content}</p>
+                        <p className="text-slate-700">{d.content}</p>
                       </div>
                     ))}
                   </div>
@@ -1690,10 +1962,10 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
             {activeTab === "CHRONICLE" && (
               <div id="tour-chronicle-sql" className="space-y-3 text-xs">
                 <div className="flex items-center justify-between">
-                  <span className="font-bold uppercase tracking-wider text-amber-300">
+                  <span className="font-serif font-bold uppercase tracking-wider text-red-900">
                     Deterministic SQL Event Ledger
                   </span>
-                  <span className="text-[11px] font-mono text-stone-400">
+                  <span className="text-[11px] font-mono opacity-75">
                     ACTIVE vs SUPERSEDED / EXPIRED
                   </span>
                 </div>
@@ -1704,23 +1976,23 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     return (
                       <div
                         key={ev.id}
-                        className={`p-2.5 rounded-lg border ${
+                        className={`p-3 rounded-xl border ${
                           isActive
-                            ? "bg-stone-950 border-stone-800"
-                            : "bg-stone-950/40 border-stone-900 opacity-60"
+                            ? "bg-[#fffdf9] border-amber-900/30 text-slate-900 shadow-xs"
+                            : "bg-slate-200/60 border-slate-400/50 text-slate-600 opacity-70"
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-bold text-stone-100">
+                          <span className="font-serif font-bold">
                             [Turn {ev.turnRecorded}] {ev.title}
                           </span>
                           <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono ${
+                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
                               ev.status === EventStatus.ACTIVE
-                                ? "bg-emerald-950 text-emerald-300 border border-emerald-700/60"
+                                ? "bg-emerald-100 text-emerald-900 border border-emerald-600"
                                 : ev.status === EventStatus.SUPERSEDED
-                                ? "bg-purple-950 text-purple-300 border border-purple-700/60"
-                                : "bg-stone-800 text-stone-400"
+                                ? "bg-purple-100 text-purple-900 border border-purple-600"
+                                : "bg-slate-200 text-slate-700"
                             }`}
                           >
                             {ev.status === EventStatus.ACTIVE ? (
@@ -1733,8 +2005,8 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                             {ev.status}
                           </span>
                         </div>
-                        <p className="text-stone-400 mt-1">{ev.description}</p>
-                        <div className="flex items-center gap-3 mt-1.5 text-[10px] font-mono text-stone-500">
+                        <p className="mt-1 opacity-85">{ev.description}</p>
+                        <div className="flex items-center gap-3 mt-1.5 text-[10px] font-mono opacity-70">
                           <span>Category: {ev.category}</span>
                           <span>Scope: {ev.scope}</span>
                           {ev.validUntilTurn && (

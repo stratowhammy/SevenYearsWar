@@ -388,35 +388,35 @@ export default function AdminRolesClient({
   };
 
   return (
-    <div className="min-h-screen bg-stone-950 text-stone-100 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="syw-shell p-6">
+      <div className="max-w-7xl mx-auto space-y-6 w-full">
         {/* Top Header & Navigation */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-stone-800 pb-5">
+        <div className="syw-header rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-3">
               <Link
                 href={`/game/${game.id}`}
-                className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded bg-stone-900 hover:bg-stone-800 text-amber-300 border border-stone-700 transition"
+                className="syw-btn-secondary"
               >
                 <ArrowLeft className="w-3.5 h-3.5" /> Return to War Room Map
               </Link>
-              <span className="text-xs font-mono uppercase tracking-wider px-2.5 py-1 rounded bg-amber-950/70 text-amber-300 border border-amber-700/50">
+              <span className="text-xs font-mono uppercase tracking-wider px-2.5 py-1 rounded-full bg-amber-500 text-slate-950 font-bold">
                 Turn {turnMeta.turnNumber} • {turnMeta.currentSeason}{" "}
                 {turnMeta.currentYear} • {turnMeta.currentPhase}
               </span>
             </div>
-            <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-amber-100 mt-2">
-              Game Master Control & Role Seating Matrix
+            <h1 className="text-2xl md:text-3xl font-serif font-bold tracking-tight text-amber-50 mt-2">
+              Game Master Control &amp; Role Seating Matrix
             </h1>
-            <p className="text-sm text-stone-400">
+            <p className="text-sm text-amber-200/80">
               {game.name} — Configure Human vs. AI Controller seats (10 Factions ×
-              3 Roles = 30 Seats) & Hybrid DeepSeek Routing
+              3 Roles = 30 Seats) &amp; Hybrid DeepSeek Routing
             </p>
           </div>
 
           {/* 5. Turn Control Panel */}
-          <div className="flex flex-wrap items-center gap-2.5 bg-stone-900/90 p-3 rounded-lg border border-stone-800">
-            <span className="text-xs font-semibold uppercase tracking-wider text-stone-400 mr-1">
+          <div className="flex flex-wrap items-center gap-2.5 bg-slate-950/80 p-3 rounded-xl border border-amber-500/40">
+            <span className="text-xs font-semibold uppercase tracking-wider text-amber-200 mr-1">
               Turn Control:
             </span>
             <button
@@ -424,7 +424,7 @@ export default function AdminRolesClient({
               disabled={isPending}
               onClick={handleForceResolveTurn}
               data-testid="btn-force-resolve-turn"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-semibold bg-amber-600 hover:bg-amber-500 text-stone-950 transition disabled:opacity-50 cursor-pointer"
+              className="syw-btn-primary"
             >
               <Play className="w-3.5 h-3.5" /> Force Resolve Turn
             </button>
@@ -433,7 +433,7 @@ export default function AdminRolesClient({
               disabled={isPending}
               onClick={() => setShowOffMapModal(true)}
               data-testid="btn-inject-offmap-event"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-semibold bg-indigo-900/90 hover:bg-indigo-800 text-indigo-100 border border-indigo-700 transition disabled:opacity-50 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-indigo-900 hover:bg-indigo-800 text-indigo-100 border border-indigo-500/60 transition disabled:opacity-50 cursor-pointer"
             >
               <Globe className="w-3.5 h-3.5" /> Inject Off-Map Event
             </button>
@@ -442,7 +442,7 @@ export default function AdminRolesClient({
               disabled={isPending}
               onClick={handleRecalculateLedgers}
               data-testid="btn-recalculate-ledgers"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-md text-xs font-semibold bg-emerald-900/90 hover:bg-emerald-800 text-emerald-100 border border-emerald-700 transition disabled:opacity-50 cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-900 hover:bg-emerald-800 text-emerald-100 border border-emerald-500/60 transition disabled:opacity-50 cursor-pointer"
             >
               <Calculator className="w-3.5 h-3.5" /> Recalculate Ledgers
             </button>
