@@ -14,6 +14,7 @@ import "leaflet/dist/leaflet.css";
 import { FactionType } from "@prisma/client";
 import {
   AMERICAS_CARIBBEAN_BOUNDS,
+  CARTO_MAP_CONFIG,
   FACTION_HEX_COLORS,
   SEA_ZONE_POLYGONS,
   buildGraphEdges,
@@ -135,6 +136,8 @@ export default function MapViewer({
     <div
       className="relative w-full h-full min-h-[540px] rounded-xl overflow-hidden border border-amber-900/50 shadow-2xl bg-[#1a1612]"
       data-testid="americas-caribbean-map-viewer"
+      data-raster-tile-url={CARTO_MAP_CONFIG.rasterTileUrl}
+      data-vector-style-url={CARTO_MAP_CONFIG.vectorStyleUrl}
     >
       {/* Parchment filter styling */}
       <style>{`
@@ -195,8 +198,8 @@ export default function MapViewer({
         className="w-full h-full min-h-[540px]"
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &amp; CartoDB'
-          url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
+          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &amp; <a href="https://carto.com/attributions">CARTO</a>'
+          url={CARTO_MAP_CONFIG.rasterTileUrl}
           className="syw-parchment-tiles"
         />
 

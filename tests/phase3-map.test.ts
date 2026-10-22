@@ -3,6 +3,7 @@ import prisma from "@/lib/prisma";
 import { seedCampaignGame } from "@/prisma/seed";
 import {
   AMERICAS_CARIBBEAN_BOUNDS,
+  CARTO_MAP_CONFIG,
   SEA_ZONE_POLYGONS,
   buildGraphEdges,
   classifyNodeIconType,
@@ -105,6 +106,18 @@ describe("Phase 3: Americas & Caribbean Node Graph Map & Seasonal Constraints", 
     expect(useWarRoomStore.getState().selectedNodeId).toBe("node-duquesne");
     expect(useWarRoomStore.getState().selectedFactionType).toBe(
       FactionType.FRANCE
+    );
+  });
+
+  it("configures the CARTO API key, Raster PNG tile URL, and Vector style URL", () => {
+    expect(CARTO_MAP_CONFIG.apiKey).toBe(
+      "cb1_4rdy_1_a476d2b7db8c41280db5a144"
+    );
+    expect(CARTO_MAP_CONFIG.rasterTileUrl).toBe(
+      "https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=cb1_4rdy_1_a476d2b7db8c41280db5a144"
+    );
+    expect(CARTO_MAP_CONFIG.vectorStyleUrl).toBe(
+      "https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json?key=cb1_4rdy_1_a476d2b7db8c41280db5a144"
     );
   });
 });

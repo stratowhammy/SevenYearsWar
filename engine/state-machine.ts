@@ -110,11 +110,10 @@ export async function processOrderSubmissionPhase(gameId: string) {
       .map((o) => `${o.factionId}:${o.submittedByRole}`)
   );
 
-  const aiSubmissions: Array<{
+  const pendingRoleTasks: Array<{
     factionId: string;
-    roleType: string;
-    model: string;
-    orderCount: number;
+    factionType: string;
+    roleType: any;
   }> = [];
 
   for (const faction of game.factions) {
@@ -125,23 +124,37 @@ export async function processOrderSubmissionPhase(gameId: string) {
       ) {
         const key = `${faction.id}:${role.roleType}`;
         if (!existingRoleSubmissions.has(key)) {
-          const aiRes = await invokeRoleAIController({
-            gameId,
+          pendingRoleTasks.push({
             factionId: faction.id,
+            factionType: faction.type,
             roleType: role.roleType,
-            behavior: BotBehavior.AUTONOMOUS,
-            persistOrders: true,
-          });
-          aiSubmissions.push({
-            factionId: faction.id,
-            roleType: role.roleType,
-            model: aiRes.modelConfig.model,
-            orderCount: aiRes.persistedOrderIds.length,
           });
         }
       }
     }
   }
+
+  const aiSubmissions = await Promise.all(
+    pendingRoleTasks.map(async (task) => {
+      const aiRes = await invokeRoleAIController({
+        gameId,
+        factionId: task.factionId,
+        roleType: task.roleType,
+        behavior: BotBehavior.AUTONOMOUS,
+        persistOrders: true,
+      });
+      return {
+        factionId: task.factionId,
+        factionType: task.factionType,
+        roleType: task.roleType,
+        model: aiRes.modelConfig.model,
+        usedLiveApi: aiRes.usedLiveApi,
+        orderCount: aiRes.persistedOrderIds.length,
+        orders: aiRes.orders?.actionOrders ?? [],
+        reasoningScratchpad: aiRes.reasoningScratchpad,
+      };
+    })
+  );
 
   const updatedGame = await prisma.game.update({
     where: { id: gameId },

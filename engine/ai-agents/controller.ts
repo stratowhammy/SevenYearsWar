@@ -177,8 +177,14 @@ export async function invokeRoleAIController(params: {
     effectiveBehavior
   );
 
+  const { extra_body, ...restModelConfig } = modelConfig;
   const deepseekRequestPayload = {
-    ...modelConfig,
+    ...restModelConfig,
+    ...(extra_body ?? {}),
+    max_tokens:
+      modelConfig.model === "deepseek-v4-pro"
+        ? Math.max(modelConfig.max_tokens, 4096)
+        : modelConfig.max_tokens,
     messages: promptBundle.messages,
   };
 
@@ -192,6 +198,9 @@ export async function invokeRoleAIController(params: {
 
   if (apiKey && apiKey.trim().length > 0) {
     try {
+      const timeoutMs =
+        Number(process.env.DEEPSEEK_TIMEOUT_MS) ||
+        (modelConfig.model === "deepseek-v4-pro" ? 15000 : 8000);
       const response = await fetch(`${baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
@@ -199,6 +208,7 @@ export async function invokeRoleAIController(params: {
           Authorization: `Bearer ${apiKey}`,
         },
         body: JSON.stringify(deepseekRequestPayload),
+        signal: AbortSignal.timeout(timeoutMs),
       });
 
       if (response.ok) {
@@ -213,6 +223,14 @@ export async function invokeRoleAIController(params: {
           const candidate = jsonMatch
             ? JSON.parse(jsonMatch[0])
             : JSON.parse(content);
+          if (Array.isArray(candidate?.actionOrders)) {
+            candidate.actionOrders = candidate.actionOrders
+              .slice(0, 3)
+              .map((o: any) => ({
+                ...o,
+                reasoning: String(o?.reasoning ?? "").slice(0, 100),
+              }));
+          }
           parsedOrders = AutonomousOrderSchema.parse(candidate);
         } else {
           const words = content.trim().split(/\s+/);

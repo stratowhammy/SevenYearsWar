@@ -1,5 +1,19 @@
 import { FactionType } from "@prisma/client";
 
+export const CARTO_API_KEY =
+  process.env.NEXT_PUBLIC_CARTO_API_KEY ||
+  "cb1_4rdy_1_a476d2b7db8c41280db5a144";
+
+export const CARTO_MAP_CONFIG = {
+  apiKey: CARTO_API_KEY,
+  rasterTileUrl:
+    process.env.NEXT_PUBLIC_CARTO_RASTER_TILE_URL ||
+    `https://basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}.png?key=${CARTO_API_KEY}`,
+  vectorStyleUrl:
+    process.env.NEXT_PUBLIC_CARTO_VECTOR_STYLE_URL ||
+    `https://basemaps.cartocdn.com/gl/voyager-gl-style/style.json?key=${CARTO_API_KEY}`,
+};
+
 export const AMERICAS_CARIBBEAN_BOUNDS = {
   south: 10,
   north: 55,
