@@ -155,8 +155,21 @@ Write a concise strategic briefing of AT MOST 150 words analyzing the top active
   const serializedContext = JSON.stringify({
     factionState: contextPayload.factionState,
     strategicObjective: contextPayload.strategicObjective,
-    controlledNodes: contextPayload.controlledNodes.slice(0, 5),
-    activeUnits: contextPayload.activeUnits.slice(0, 5),
+    controlledNodes: contextPayload.controlledNodes.slice(0, 5).map((n) => ({
+      id: n.id,
+      name: n.name,
+      nodeType: n.nodeType,
+      resourceType: n.resourceType,
+      yield: n.yield,
+      adjacentNodes: n.adjacentNodes,
+    })),
+    activeUnits: contextPayload.activeUnits.slice(0, 5).map((u) => ({
+      id: u.id,
+      type: u.type,
+      strength: u.strength,
+      nodeId: u.nodeId,
+      location: u.location,
+    })),
     recentActiveEvents: contextPayload.recentActiveEvents,
   });
 
