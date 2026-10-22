@@ -15,7 +15,8 @@
     "test:phase2": "vitest run tests/phase2-admin.test.ts",
     "test:phase3": "vitest run tests/phase3-map.test.ts",
     "test:phase4": "vitest run tests/phase4-ai.test.ts",
-    "test:phase5": "vitest run tests/phase5-gameloop.test.ts"
+    "test:phase5": "vitest run tests/phase5-gameloop.test.ts",
+    "test:phase6": "vitest run tests/phase6-historical-realism.test.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.5.0",

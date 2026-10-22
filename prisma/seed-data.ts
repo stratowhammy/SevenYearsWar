@@ -428,7 +428,13 @@ export const INITIAL_MAP_NODES: SeedNodeTemplate[] = [
     resourceType: "TIMBER",
     resourceYield: 15,
     controllingFaction: FactionType.FRANCE,
-    adjacentKeys: ["lake_champlain_corridor", "kahnawake", "boston", "onondaga"],
+    adjacentKeys: [
+      "lake_champlain_corridor",
+      "kahnawake",
+      "boston",
+      "onondaga",
+      "fort_oswego",
+    ],
   },
   {
     key: "fort_louisbourg",
@@ -454,7 +460,12 @@ export const INITIAL_MAP_NODES: SeedNodeTemplate[] = [
     resourceType: "FURS",
     resourceYield: 20,
     controllingFaction: FactionType.GREAT_BRITAIN,
-    adjacentKeys: ["onondaga", "fort_niagara", "lake_champlain_corridor"],
+    adjacentKeys: [
+      "onondaga",
+      "fort_niagara",
+      "lake_champlain_corridor",
+      "fort_ticonderoga",
+    ],
   },
   {
     key: "fort_niagara",

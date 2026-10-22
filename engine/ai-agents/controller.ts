@@ -196,7 +196,12 @@ export async function invokeRoleAIController(params: {
   let reasoningScratchpad: string | undefined;
   let usedLiveApi = false;
 
-  if (apiKey && apiKey.trim().length > 0) {
+  const shouldCallLiveNetwork =
+    Boolean(apiKey && apiKey.trim().length > 0) &&
+    (process.env.VITEST !== "true" ||
+      process.env.FORCE_LIVE_DEEPSEEK === "true");
+
+  if (shouldCallLiveNetwork) {
     try {
       const timeoutMs =
         Number(process.env.DEEPSEEK_TIMEOUT_MS) ||
