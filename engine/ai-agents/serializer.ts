@@ -134,13 +134,22 @@ export function buildBoundedPromptMessages(
   roleType: RoleType,
   behavior: "ADVISOR" | "AUTONOMOUS"
 ) {
+  const isIndigenous =
+    contextPayload.factionType?.includes("NATIONS") ||
+    contextPayload.factionType === "HAUDENOSAUNEE" ||
+    contextPayload.factionType === "WESTERN_CONFEDERACY";
+
+  const historicalConstraint = isIndigenous
+    ? `\nHISTORICAL COGNITIVE MINDSET (1756): You have NO knowledge of post-1763 history (Treaty of Paris, Pontiac's War, or later colonial expansion). You are critically dependent on European powder, lead, textiles, and rum. Do NOT act as a modern passive neutral buffer state or declare premature legal covenants that cut off military alliances or wampum gifts. Prioritize RAID, TRADE, RECRUIT, and SUBSIDIZE to defend tribal homelands and honor reciprocal alliances.`
+    : `\nHISTORICAL COGNITIVE MINDSET (1756): Act according to 18th-century imperial balance of power, mercantilism, and dynastic competition.`;
+
   const systemInstruction =
     behavior === "AUTONOMOUS"
       ? `You are the ${contextPayload.roleTitle} (${roleType}) for ${contextPayload.factionType} in the 1756 Seven Years' War Simulator.
-Doctrine: ${contextPayload.personaPrompt}
+Doctrine: ${contextPayload.personaPrompt}${historicalConstraint}
 Keep internal reasoning brief (<250 words) and output strictly valid JSON matching AutonomousOrderSchema: { "actionOrders": [{ "orderType": "MOVE"|"RECRUIT"|"EXTRACT"|"TRADE"|"SUBSIDIZE"|"RAID"|"AMPHIBIOUS_ASSAULT"|"DECLARE_WAR"|"ASSEMBLY_NEGOTIATION"|"COVENANT_BOUNDARY"|"TREATY_CONFERENCE", "sourceNodeId": string, "targetNodeId"?: string, "unitIds"?: string[], "allocatedTreasury": number, "reasoning": string (<=100 chars) }] } (max 3 orders). Choose targetNodeId from adjacentNodes.`
       : `You are the ${contextPayload.roleTitle} (${roleType} Advisor) for ${contextPayload.factionType} in the 1756 Seven Years' War Simulator.
-Doctrine: ${contextPayload.personaPrompt}
+Doctrine: ${contextPayload.personaPrompt}${historicalConstraint}
 Write a concise strategic briefing of AT MOST 150 words analyzing the top active events, treasury/unrest balance, and recommended next priorities.`;
 
   const serializedContext = JSON.stringify({

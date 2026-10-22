@@ -67,15 +67,32 @@ function synthesizeDeterministicAutonomousOrders(
         ),
       });
     } else if (isIndigenous && primaryNode) {
-      actionOrders.push({
-        orderType: "COVENANT_BOUNDARY",
-        sourceNodeId: primaryNode.id,
-        allocatedTreasury: 0,
-        reasoning: `Proclaim sacred treaty covenant boundary at ${primaryNode.name}`.slice(
-          0,
-          100
-        ),
-      });
+      // In early war, Indigenous executives prioritize wampum gifts and trade over premature neutral buffer treaties
+      const hasEastonContext = contextPayload.recentActiveEvents.some(
+        (e) => e.toLowerCase().includes("easton") || e.toLowerCase().includes("treaty")
+      );
+      if (unrest >= 50 || hasEastonContext) {
+        actionOrders.push({
+          orderType: "COVENANT_BOUNDARY",
+          sourceNodeId: primaryNode.id,
+          allocatedTreasury: 0,
+          reasoning: `Assert ancestral covenant boundary at ${primaryNode.name} to preserve tribal lands`.slice(
+            0,
+            100
+          ),
+        });
+      } else {
+        actionOrders.push({
+          orderType: "SUBSIDIZE",
+          sourceNodeId: primaryNode.id,
+          targetNodeId: primaryNode.adjacentNodeIds[0] ?? primaryNode.id,
+          allocatedTreasury: Math.min(15, Math.floor(treasury * 0.15)),
+          reasoning: `Distribute wampum and trade gifts to clan war chiefs at ${primaryNode.name}`.slice(
+            0,
+            100
+          ),
+        });
+      }
     } else if (!isIndigenous && unrest >= 45 && primaryNode) {
       actionOrders.push({
         orderType: "ASSEMBLY_NEGOTIATION",
