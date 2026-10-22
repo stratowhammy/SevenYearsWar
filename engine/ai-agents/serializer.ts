@@ -13,6 +13,11 @@ export const AutonomousOrderSchema = z.object({
           "TRADE",
           "SUBSIDIZE",
           "RAID",
+          "AMPHIBIOUS_ASSAULT",
+          "DECLARE_WAR",
+          "ASSEMBLY_NEGOTIATION",
+          "COVENANT_BOUNDARY",
+          "TREATY_CONFERENCE",
         ]),
         sourceNodeId: z.string(),
         targetNodeId: z.string().optional(),
@@ -76,6 +81,7 @@ export async function getRoleContextPayload(
     factionType: faction?.type,
     role,
     roleTitle: matchingRole?.title ?? role,
+    strategicObjective: matchingRole?.strategicObjective ?? null,
     personaPrompt:
       matchingRole?.aiPersonaPrompt ??
       "Act according to 1756 historical strategic priorities.",
@@ -132,13 +138,14 @@ export function buildBoundedPromptMessages(
     behavior === "AUTONOMOUS"
       ? `You are the ${contextPayload.roleTitle} (${roleType}) for ${contextPayload.factionType} in the 1756 Seven Years' War Simulator.
 Doctrine: ${contextPayload.personaPrompt}
-Keep internal reasoning brief (<250 words) and output strictly valid JSON matching AutonomousOrderSchema: { "actionOrders": [{ "orderType": "MOVE"|"RECRUIT"|"EXTRACT"|"TRADE"|"SUBSIDIZE"|"RAID", "sourceNodeId": string, "targetNodeId"?: string, "unitIds"?: string[], "allocatedTreasury": number, "reasoning": string (<=100 chars) }] } (max 3 orders). Choose targetNodeId from adjacentNodes.`
+Keep internal reasoning brief (<250 words) and output strictly valid JSON matching AutonomousOrderSchema: { "actionOrders": [{ "orderType": "MOVE"|"RECRUIT"|"EXTRACT"|"TRADE"|"SUBSIDIZE"|"RAID"|"AMPHIBIOUS_ASSAULT"|"DECLARE_WAR"|"ASSEMBLY_NEGOTIATION"|"COVENANT_BOUNDARY"|"TREATY_CONFERENCE", "sourceNodeId": string, "targetNodeId"?: string, "unitIds"?: string[], "allocatedTreasury": number, "reasoning": string (<=100 chars) }] } (max 3 orders). Choose targetNodeId from adjacentNodes.`
       : `You are the ${contextPayload.roleTitle} (${roleType} Advisor) for ${contextPayload.factionType} in the 1756 Seven Years' War Simulator.
 Doctrine: ${contextPayload.personaPrompt}
 Write a concise strategic briefing of AT MOST 150 words analyzing the top active events, treasury/unrest balance, and recommended next priorities.`;
 
   const serializedContext = JSON.stringify({
     factionState: contextPayload.factionState,
+    strategicObjective: contextPayload.strategicObjective,
     controlledNodes: contextPayload.controlledNodes.slice(0, 5),
     activeUnits: contextPayload.activeUnits.slice(0, 5),
     recentActiveEvents: contextPayload.recentActiveEvents,

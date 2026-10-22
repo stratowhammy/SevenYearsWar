@@ -59,20 +59,22 @@ enum EventScope {
 }
 
 model Game {
-  id              String      @id @default(cuid())
-  name            String
-  currentYear     Int         @default(1756)
-  currentSeason   String      @default("Spring")
-  currentPhase    Phase       @default(INTEL_DISPATCH)
-  phaseDeadline   DateTime?
-  turnNumber      Int         @default(1)
-  factions        Faction[]
-  nodes           MapNode[]
-  events          GameEvent[]
-  orders          Order[]
-  dispatches      Dispatch[]
-  offMapModifiers Json
-  createdAt       DateTime    @default(now())
+  id                    String      @id @default(cuid())
+  name                  String
+  currentYear           Int         @default(1756)
+  currentSeason         String      @default("Spring")
+  currentPhase          Phase       @default(INTEL_DISPATCH)
+  phaseDeadline         DateTime?
+  turnNumber            Int         @default(1)
+  isPeaceTreatyConcluded Boolean    @default(false)
+  treatyTerms           Json?
+  factions              Faction[]
+  nodes                 MapNode[]
+  events                GameEvent[]
+  orders                Order[]
+  dispatches            Dispatch[]
+  offMapModifiers       Json
+  createdAt             DateTime    @default(now())
 }
 
 model Faction {
@@ -84,21 +86,24 @@ model Faction {
   debt            Int           @default(0)
   unrestIndex     Int           @default(0)
   standingPoints  Int           @default(3)
+  assemblySupport Int           @default(50)
+  covenantBoundaries String[]   @default([])
   roles           FactionRole[]
   nodesControlled MapNode[]
   units           Unit[]
 }
 
 model FactionRole {
-  id              String         @id @default(cuid())
-  factionId       String
-  faction         Faction        @relation(fields: [factionId], references: [id], onDelete: Cascade)
-  roleType        RoleType
-  title           String
-  controller      ControllerType @default(HUMAN)
-  botBehavior     BotBehavior    @default(NONE)
-  assignedUserId  String?
-  aiPersonaPrompt String?
+  id                 String         @id @default(cuid())
+  factionId          String
+  faction            Faction        @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  roleType           RoleType
+  title              String
+  controller         ControllerType @default(HUMAN)
+  botBehavior        BotBehavior    @default(NONE)
+  assignedUserId     String?
+  aiPersonaPrompt    String?
+  strategicObjective Json?
 }
 
 model MapNode {

@@ -16,6 +16,10 @@ import {
   getFactionManpowerCap,
   getPairwiseDiplomaticStance,
   isNavalUnitType,
+  evaluateTreatyConference,
+  evaluateFamilyCompactEscalation,
+  checkCovenantViolation,
+  declareWarBetweenFactions,
 } from "./diplomacy";
 import { computeEdgeConstraint } from "@/components/map/map-geometry";
 
@@ -148,6 +152,15 @@ export async function processDiplomaticTradePhase(gameId: string) {
     }
   }
 
+  // Phase 7: Evaluate Third Family Compact Escalation (Turn 24+)
+  const familyCompactNotice = await evaluateFamilyCompactEscalation(
+    gameId,
+    game.turnNumber
+  );
+
+  // Phase 7: Evaluate Treaty of Paris Peace Conference
+  const treatyEvaluation = await evaluateTreatyConference(gameId);
+
   const updatedGame = await prisma.game.update({
     where: { id: gameId },
     data: { currentPhase: Phase.ORDER_SUBMISSION },
@@ -157,6 +170,8 @@ export async function processDiplomaticTradePhase(gameId: string) {
     phaseExecuted: Phase.DIPLOMATIC_TRADE,
     nextPhase: updatedGame.currentPhase,
     offMapReport,
+    familyCompactNotice,
+    treatyEvaluation,
   };
 }
 
@@ -455,6 +470,12 @@ export async function processResolutionPhase(gameId: string) {
         ? Math.round(baseReturn * 0.5)
         : baseReturn;
 
+      if (isBlockaded) {
+        combatLogs.push(
+          `[Naval Blockade] Hostile ships of the line intercepted merchant convoys off ${sourceNode?.name ?? "coast"}, reducing trade yields by 50%`
+        );
+      }
+
       await prisma.faction.update({
         where: { id: faction.id },
         data: { treasury: { increment: finalReturn } },
@@ -500,6 +521,16 @@ export async function processResolutionPhase(gameId: string) {
             `Move rejected: ${sourceNode?.name ?? "Unknown"} is not adjacent to ${targetNode.name}`
           );
         } else {
+          // Phase 7: Check Indigenous Boundary Covenant Violation
+          const covCheck = await checkCovenantViolation(
+            gameId,
+            faction.id,
+            targetNode.id
+          );
+          if (covCheck.violated && covCheck.log) {
+            combatLogs.push(covCheck.log);
+          }
+
           // 2. Filter units by Land/Sea Domain eligibility
           const targetIsCoastalOrSea =
             targetNode.nodeType === "SEA_ZONE" ||
@@ -542,11 +573,21 @@ export async function processResolutionPhase(gameId: string) {
                 100,
                 Math.floor(u.strength * seasonalMultiplier)
               );
+              const casualties = u.strength - postAttrition;
               u.strength = postAttrition;
               await prisma.unit.update({
                 where: { id: u.id },
                 data: { strength: postAttrition },
               });
+              if (edge.isFrozen) {
+                combatLogs.push(
+                  `[Winter Freeze] Ice in ${targetNode.region} inflicted ${casualties} casualties on ${u.unitType} marching to ${targetNode.name}`
+                );
+              } else if (edge.hasHurricaneRisk) {
+                combatLogs.push(
+                  `[Hurricane] Tropical gale off ${targetNode.name} damaged ${u.unitType} with ${casualties} naval losses`
+                );
+              }
             }
           }
 
@@ -737,6 +778,214 @@ export async function processResolutionPhase(gameId: string) {
           }
         }
       }
+    } else if (
+      order.orderType === "COVENANT_BOUNDARY" &&
+      payload.sourceNodeId
+    ) {
+      const covenantedNode = await prisma.mapNode.findUnique({
+        where: { id: payload.sourceNodeId },
+      });
+      if (covenantedNode) {
+        const existingBounds = faction.covenantBoundaries || [];
+        if (!existingBounds.includes(covenantedNode.id)) {
+          await prisma.faction.update({
+            where: { id: faction.id },
+            data: { covenantBoundaries: { push: covenantedNode.id } },
+          });
+          await recordAndReconcileEvent({
+            gameId,
+            turn: game.turnNumber,
+            category: "TREATY",
+            scope: EventScope.NODE,
+            primaryNodeId: covenantedNode.id,
+            factionIds: [faction.id],
+            title: `Easton Covenant Boundary Proclaimed at ${covenantedNode.name}`,
+            description: `${faction.type} grand council proclaimed a sacred boundary over ${covenantedNode.name}, barring colonial encroachment under treaty covenant.`,
+          });
+          combatLogs.push(
+            `[Covenant Proclamation] ${faction.type} established a sovereign boundary over ${covenantedNode.name} under the Treaty of Easton / Council Covenants.`
+          );
+        }
+      }
+    } else if (
+      order.orderType === "AMPHIBIOUS_ASSAULT" &&
+      payload.targetNodeId
+    ) {
+      const targetNode = await prisma.mapNode.findUnique({
+        where: { id: payload.targetNodeId },
+        include: { units: true, controller: true },
+      });
+
+      if (targetNode) {
+        const adjacentSeaIds = (targetNode.adjacentNodeIds ?? []).filter((id) =>
+          seaZoneIds.has(id)
+        );
+        const hasNavalFleet = faction.units.some(
+          (u) =>
+            isNavalUnitType(u.unitType) &&
+            (u.nodeId === targetNode.id || adjacentSeaIds.includes(u.nodeId))
+        );
+
+        if (!hasNavalFleet) {
+          combatLogs.push(
+            `Amphibious assault rejected: ${faction.type} lacks naval escort near ${targetNode.name}`
+          );
+        } else {
+          // Check for defending hostile Ships of the Line in adjacent waters
+          const hostileSeaShips = await prisma.unit.findMany({
+            where: {
+              nodeId: { in: adjacentSeaIds },
+              unitType: "SHIP_OF_THE_LINE",
+              factionId: { not: faction.id },
+            },
+          });
+
+          let fleetRepulsed = false;
+          if (hostileSeaShips.length > 0) {
+            const defendingFleetPower = hostileSeaShips.reduce(
+              (s, u) => s + u.strength * u.discipline,
+              0
+            );
+            const attackingFleetPower = faction.units
+              .filter(
+                (u) =>
+                  isNavalUnitType(u.unitType) &&
+                  adjacentSeaIds.includes(u.nodeId)
+              )
+              .reduce((s, u) => s + u.strength * u.discipline, 0);
+
+            if (defendingFleetPower > attackingFleetPower * 1.25) {
+              fleetRepulsed = true;
+              combatLogs.push(
+                `[Naval Interception] Hostile fleet in adjacent waters intercepted and repulsed ${faction.type} amphibious expedition against ${targetNode.name}!`
+              );
+            }
+          }
+
+          if (!fleetRepulsed) {
+            combatLogs.push(
+              `[Amphibious Assault] ${faction.type} fleet conducted preliminary naval bombardment on ${targetNode.name}!`
+            );
+
+            const candidateLandUnits = await prisma.unit.findMany({
+              where: {
+                factionId: faction.id,
+                ...(payload.unitIds && payload.unitIds.length > 0
+                  ? { id: { in: payload.unitIds } }
+                  : payload.sourceNodeId
+                  ? { nodeId: payload.sourceNodeId }
+                  : {}),
+              },
+              take: 2,
+            });
+
+            const defenderUnits = targetNode.units.filter(
+              (u) => u.factionId !== faction.id
+            );
+            const attackPower =
+              (candidateLandUnits.reduce(
+                (sum, u) => sum + u.strength * u.discipline,
+                0
+              ) || 1200) * 1.35; // 35% preliminary bombardment advantage
+            const defensePower = defenderUnits.reduce(
+              (sum, u) => sum + u.strength * u.discipline,
+              0
+            );
+
+            if (defensePower === 0 || attackPower > defensePower) {
+              const previousOwnerId = targetNode.controllingId;
+              for (const defUnit of defenderUnits) {
+                await prisma.unit.delete({ where: { id: defUnit.id } });
+              }
+              for (const atkUnit of candidateLandUnits) {
+                await prisma.unit.update({
+                  where: { id: atkUnit.id },
+                  data: {
+                    nodeId: targetNode.id,
+                    strength: Math.max(150, Math.floor(atkUnit.strength * 0.9)),
+                  },
+                });
+              }
+              await prisma.mapNode.update({
+                where: { id: targetNode.id },
+                data: { controllingId: faction.id },
+              });
+              combatLogs.push(
+                `${faction.type} captured ${targetNode.name} via combined amphibious assault`
+              );
+
+              if (previousOwnerId && previousOwnerId !== faction.id) {
+                await recordAndReconcileEvent({
+                  gameId,
+                  turn: game.turnNumber,
+                  category: "MILITARY",
+                  scope: EventScope.NODE,
+                  primaryNodeId: targetNode.id,
+                  factionIds: [faction.id, previousOwnerId],
+                  title: `Amphibious Fall of ${targetNode.name}`,
+                  description: `${faction.type} forces stormed ashore under heavy naval gunfire, capturing ${targetNode.name}.`,
+                });
+              }
+            } else {
+              combatLogs.push(
+                `Amphibious assault on ${targetNode.name} by ${faction.type} was repulsed`
+              );
+            }
+          }
+        }
+      }
+    } else if (order.orderType === "DECLARE_WAR" && payload.targetNodeId) {
+      const targetNode = await prisma.mapNode.findUnique({
+        where: { id: payload.targetNodeId },
+        include: { controller: true },
+      });
+      if (targetNode?.controller && targetNode.controller.id !== faction.id) {
+        await declareWarBetweenFactions(
+          gameId,
+          faction.id,
+          targetNode.controller.id,
+          payload.reasoning || "Formal declaration of war"
+        );
+        combatLogs.push(
+          `[Declaration of War] ${faction.type} formally declared war on ${targetNode.controller.type}!`
+        );
+      }
+    } else if (order.orderType === "ASSEMBLY_NEGOTIATION") {
+      if (actualSpend > 0) {
+        await prisma.faction.update({
+          where: { id: faction.id },
+          data: {
+            unrestIndex: clampUnrest(faction.unrestIndex - 10),
+            assemblySupport: Math.min(100, (faction.assemblySupport ?? 50) + 15),
+          },
+        });
+        combatLogs.push(
+          `[Assembly Negotiation] ${faction.type} granted patronages to colonial assembly (-10% unrest, +15 assembly support).`
+        );
+      } else {
+        await prisma.faction.update({
+          where: { id: faction.id },
+          data: {
+            treasury: { increment: 40 },
+            unrestIndex: clampUnrest(faction.unrestIndex + 5),
+          },
+        });
+        combatLogs.push(
+          `[Assembly Negotiation] ${faction.type} secured 40 £ emergency supply credits from provincial assembly (+5% unrest).`
+        );
+      }
+    } else if (order.orderType === "TREATY_CONFERENCE") {
+      const treatyRes = await evaluateTreatyConference(gameId);
+      if (treatyRes.triggered) {
+        combatLogs.push(
+          treatyRes.treatySummary ||
+            `[Treaty Conference] Plenipotentiaries ratified the 1763 Treaty of Paris.`
+        );
+      } else {
+        combatLogs.push(
+          `[Treaty Conference] Peace envoys convened; preliminary truce guidelines affirmed.`
+        );
+      }
     }
 
     await prisma.order.update({
@@ -744,6 +993,46 @@ export async function processResolutionPhase(gameId: string) {
       data: { isExecuted: true },
     });
     executedCount++;
+  }
+
+  // Phase 7: Evaluate Multi-Turn Strategic Objectives on Faction Roles
+  const militaryRoles = await prisma.factionRole.findMany({
+    where: {
+      faction: { gameId },
+      roleType: RoleType.MILITARY,
+      strategicObjective: { not: null as any },
+    },
+    include: { faction: { include: { nodesControlled: true } } },
+  });
+
+  for (const role of militaryRoles) {
+    const obj = role.strategicObjective as any;
+    if (obj && obj.objectiveNodeId && obj.status === "IN_PROGRESS") {
+      const controlsObj = role.faction.nodesControlled.some(
+        (n) => n.id === obj.objectiveNodeId
+      );
+      if (controlsObj) {
+        await prisma.factionRole.update({
+          where: { id: role.id },
+          data: {
+            strategicObjective: {
+              ...obj,
+              status: "ACCOMPLISHED",
+              completedTurn: game.turnNumber,
+            },
+          },
+        });
+        await prisma.faction.update({
+          where: { id: role.faction.id },
+          data: {
+            standingPoints: clampStanding(role.faction.standingPoints + 1),
+          },
+        });
+        combatLogs.push(
+          `[Strategic Objective Accomplished] ${role.faction.type} secured target objective node!`
+        );
+      }
+    }
   }
 
   // Advance season, year, and turnNumber
