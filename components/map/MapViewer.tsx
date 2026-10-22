@@ -88,25 +88,29 @@ function createHistoricalMarkerIcon(
     ? `<circle cx="14" cy="13" r="12.5" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="3,2"/>`
     : "";
 
-  const ringStyle = isSelected
-    ? "filter: drop-shadow(0 0 10px #f59e0b); transform: scale(1.15);"
-    : "filter: drop-shadow(0 2px 4px rgba(0,0,0,0.85));";
+  const wrapperClass = isSelected
+    ? "syw-marker-wrapper syw-marker-selected"
+    : "syw-marker-wrapper syw-marker-default";
 
   const strengthBadge =
     totalStrength > 0
-      ? `<span style="position:absolute;top:-7px;right:-10px;background:#78350f;color:#fef3c7;border:1px solid #f59e0b;border-radius:999px;padding:0 4px;font-size:9px;font-family:monospace;font-weight:700;line-height:14px;box-shadow:0 1px 3px rgba(0,0,0,0.7);">${totalStrength}</span>`
+      ? `<span class="syw-marker-strength-badge">${totalStrength}</span>`
       : "";
 
+  const labelClass = isSelected
+    ? "syw-marker-label-selected"
+    : "syw-marker-label";
+
   const html = `
-    <div style="position:relative;display:flex;flex-direction:column;align-items:center;${ringStyle}cursor:pointer;">
-      <div style="position:relative;width:28px;height:26px;">
+    <div class="${wrapperClass}">
+      <div class="relative w-[28px] h-[26px]">
         <svg width="28" height="26" viewBox="0 0 28 26" xmlns="http://www.w3.org/2000/svg">
           ${covenantHalo}
           ${glyphSvg}
         </svg>
         ${strengthBadge}
       </div>
-      <span style="margin-top:2px;background:rgba(24,24,27,0.92);color:#f4f4f5;border:1px solid ${isSelected ? "#f59e0b" : "rgba(168,162,158,0.4)"};padding:1px 5px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap;letter-spacing:0.01em;box-shadow:0 2px 4px rgba(0,0,0,0.7);">
+      <span class="${labelClass}">
         ${nodeName}
       </span>
     </div>
@@ -153,21 +157,6 @@ export default function MapViewer({
       data-raster-tile-url={CARTO_MAP_CONFIG.rasterTileUrl}
       data-vector-style-url={CARTO_MAP_CONFIG.vectorStyleUrl}
     >
-      {/* Parchment filter styling */}
-      <style>{`
-        .leaflet-container {
-          background: #1b2428 !important;
-          font-family: ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
-        }
-        .syw-parchment-tiles {
-          filter: sepia(0.58) contrast(1.05) brightness(0.88) hue-rotate(-8deg);
-        }
-        .syw-custom-node-icon {
-          background: transparent !important;
-          border: none !important;
-        }
-      `}</style>
-
       {/* Top-Left Compass & Bounds Cartouche */}
       <div className="absolute top-3 left-12 z-[500] pointer-events-none bg-stone-950/90 border border-amber-800/60 rounded-lg px-3.5 py-2 text-xs shadow-lg backdrop-blur-sm space-y-0.5">
         <div className="font-serif font-bold text-amber-200 tracking-wide">

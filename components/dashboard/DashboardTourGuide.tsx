@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { FactionType, RoleType } from "@prisma/client";
 import {
   Compass,
-  HelpCircle,
   Sparkles,
   ChevronRight,
   ChevronLeft,
@@ -18,8 +18,17 @@ import {
   Send,
   Sliders,
   Keyboard,
-  ExternalLink,
+  Award,
+  Target,
+  CheckCircle2,
+  Circle,
+  Users,
 } from "lucide-react";
+import {
+  CHARACTER_ROLE_GUIDES,
+  getCharacterRoleGuide,
+  evaluateCharacterObjectives,
+} from "@/lib/character-objectives";
 
 export interface TourStep {
   id: string;
@@ -36,50 +45,67 @@ export interface TourStep {
 
 export const TOUR_STEPS: TourStep[] = [
   {
-    id: "step-stepper",
-    targetId: "tour-header-stepper",
-    title: "Imperial Header & 4-Phase Game Loop Stepper",
-    category: "Core Engine Mechanics",
+    id: "step-doctrine",
+    targetId: "tour-role-doctrine",
+    title: "Your Character Identity, Mission & Victory Points (10 VP)",
+    category: "1. Who You Are & How You Win",
     description:
-      "Directs the strategic clock of the Seven Years' War. The campaign advances through 4 sequential seasonal phases: Intel Dispatch (couriers arrive), Diplomatic Trade (tariffs, extraction, and subsidies), Order Submission (human & AI directives), and Resolution (movement, siege, combat, and attrition).",
+      "You are stepping into the boots of an 18th-century historical leader. Every character seat has 3 personal Objectives worth 10 Victory Points (VP) total (and 30 VP across your faction's 3-seat cabinet). Completing these goals proves your leadership and wins the campaign.",
     keyFunctions: [
-      "Turn & Season Counter: Tracks seasonal weather from Spring 1756 to Winter 1762/1763.",
-      "Phase Stepper: Visualizes active phase progression across all 10 sovereign nations.",
-      "Next Phase (N): Steps the simulation forward to the next discrete phase.",
-      "Resolve Full Turn (R): Executes all 4 phases in sequence to simulate a complete season.",
-      "Admin Role Seating: Manage controller assignments (HUMAN / COMPUTER) and AI behavior across all 30 seats.",
+      "Your 3 Character Objectives: Each goal awards +3 VP to +4 VP upon completion and updates live as you play.",
+      "How to Complete Hints: Every objective tells you the exact dashboard orders (e.g., MOVE, EXTRACT, COVENANT_BOUNDARY) needed to score those Victory Points.",
+      "Historical Persona Brief: Keeps your decisions grounded in your character's real 1756 worldview and constraints.",
+      "Consult AI Advisor: Click 'Consult AI' anytime for a 150-word strategic recommendation tailored to your character.",
     ],
-    shortcut: "N / R",
-    icon: Compass,
-    position: "bottom",
+    shortcut: "? (Open Guide)",
+    icon: Award,
+    position: "left",
   },
   {
-    id: "step-offmap",
-    targetId: "tour-offmap-ribbon",
-    title: "Global Off-Map Theater Telemetry Ribbon",
-    category: "Global Geopolitics",
+    id: "step-faction",
+    targetId: "tour-faction-selector",
+    title: "Choosing Your Nation & Cabinet Seat",
+    category: "2. Character Selection",
     description:
-      "The Seven Years' War was fought across five continents. This telemetry ribbon simulates off-map geopolitical dynamics in Europe, India, and West Africa, dynamically injecting revenue, subsidies, and naval diversions into the American theater.",
+      "Switch between any of the 10 sovereign powers and 3 cabinet roles per nation (30 playable characters in total). In a multiplayer or hybrid campaign, you command your assigned seat while humans or AI personas command the others.",
     keyFunctions: [
-      "Europe Theater: Tracks British continental subsidies to Prussia vs. French field army drains in Saxony.",
-      "India Carnatic Theater: Clive and Watson's campaigns in Bengal delivering East India Company revenues.",
-      "West Africa & Atlantic: Royal Navy privateering interdictions and Dutch neutral contraband freight bonuses.",
+      "Executive Seat (10 VP): Directs grand strategy, war declarations, alliances, assembly negotiations, and peace treaties.",
+      "Military Seat (10 VP): Commands field armies, naval squadrons, fort sieges, frontier raids, and muster depots.",
+      "Diplomatic & Commerce Seat (10 VP): Manages merchant convoys, fur/sugar extraction, wampum gifts, and covenant boundaries.",
+      "10 Playable Factions: Great Britain, France, Spain, Portugal, Dutch Republic, German States, Haudenosaunee, Seven Nations, Western Confederacy, and Southeastern Nations.",
     ],
-    icon: Globe,
-    position: "bottom",
+    icon: Users,
+    position: "left",
+  },
+  {
+    id: "step-ledger",
+    targetId: "tour-faction-ledger",
+    title: "Your National Ledger: Bullion, Debt, Unrest & Standing",
+    category: "3. Resources & Survival",
+    description:
+      "Before issuing orders, check your five vital signs. Many of your character's Victory Point objectives require hitting specific Treasury, Unrest, Standing, or Assembly targets.",
+    keyFunctions: [
+      "Treasury (£): Your liquid gold and wampum for mustering troops, sending subsidies, and funding campaigns.",
+      "Debt (£): Borrowed war chest; high debt charges 5% seasonal interest and can trigger a fiscal crisis.",
+      "Unrest (%): Civil and village war weariness; if Unrest hits 70%+, colonial assemblies strike and troops desert!",
+      "Standing Points: Your international prestige and treaty credibility—essential for Executive and Diplomatic Victory Points.",
+      "Assembly Support (%): Legislative backing that boosts your colonial tax yields and provincial recruitment.",
+    ],
+    icon: BookOpen,
+    position: "left",
   },
   {
     id: "step-map",
     targetId: "tour-map-canvas",
-    title: "Americas & Caribbean Node-Graph Map",
-    category: "Cartography & Navigation",
+    title: "Surveying the Theater Map (Americas & Caribbean)",
+    category: "4. Strategic Cartography",
     description:
-      "A high-fidelity cartographic projection bounded between 10°N–55°N and 55°W–100°W. Renders fortified frontier bastions, indigenous council fires, colonial metropolises, and navigable ocean sea zones.",
+      "This is your war room map spanning 10°N–55°N and 55°W–100°W. Click any fort, port, indigenous council fire, or ocean sea zone to inspect its garrison and stage your character's orders.",
     keyFunctions: [
-      "Interactive Node Graph: Click any fortification or sea zone to inspect garrison strength and yields.",
-      "Sea Zone Polygons: Toggle ocean boundaries and privateer hunting grounds on/off.",
-      "Seasonal Movement Corridors: Toggle weather hazards (2.5x Winter freeze in St. Lawrence, 1.75x Autumn Caribbean hurricanes).",
-      "Covenant Boundaries: Royal purple glowing perimeters indicate nodes protected by the Easton Treaty.",
+      "Click Any Node: Inspect who controls a fort, how many troops are stationed there, and its £/turn commodity value.",
+      "Sea Zone Polygons Toggle: Reveal naval hunting grounds where your fleets blockade enemies or escort treasure convoys.",
+      "Seasonal Corridors Toggle: Watch out for cyan Winter Freeze routes (2.5x cost, -15% attrition) and orange Autumn Hurricane lanes (-12% fleet attrition).",
+      "Covenant Halos: Gold/purple dashed rings mark indigenous territories protected by formal Covenant Boundaries.",
     ],
     icon: Swords,
     position: "right",
@@ -87,135 +113,66 @@ export const TOUR_STEPS: TourStep[] = [
   {
     id: "step-dossier",
     targetId: "tour-node-dossier",
-    title: "Selected Node Dossier & Quick Directives",
-    category: "Tactical Command",
+    title: "Selected Node Dossier & 1-Click Quick Directives",
+    category: "5. Fast Tactical Orders",
     description:
-      "Provides granular intelligence on the currently selected theater node. Displays garrisoned battalions, resource commodities, and 1-click Quick Directives to immediately stage actions for the active role.",
+      "Whenever you click a location on the map, this dossier shows you everything inside that node and gives you 1-click Quick Directive buttons to immediately set up your turn's action.",
     keyFunctions: [
-      "Garrison Roster: Inspect stationed infantry, rangers, marines, or indigenous war parties.",
-      "Economic Yield: View local commodities (Furs, Timber, Sugar, Tobacco) and revenue yields in £/turn.",
-      "March Force (MOVE): Pre-fills movement orders toward adjacent connected nodes.",
-      "Muster (RECRUIT): Raises provincial levies or regular battalions at the node.",
-      "Harvest Yield (EXTRACT): Gathers commodity revenues into the national treasury.",
-      "Covenant Boundary: Enacts a legal territorial reservation under indigenous treaty covenants.",
-      "Amphibious Assault: Directs naval fleets to bombard and storm coastal bastions.",
-      "Courier: Instantly pre-addresses a diplomatic dispatch to the occupying power.",
+      "March Force (MOVE): Pre-fills an advance from the selected node toward an adjacent fort or river pass.",
+      "Muster (RECRUIT): Raises new regiments, provincial militia, or indigenous war parties at this location.",
+      "Harvest Yield (EXTRACT): Collects furs, sugar, tobacco, or timber into your Treasury to hit Economic VP goals.",
+      "Covenant: Proclaims a protected boundary line around the node to earn Indigenous & Diplomatic Victory Points.",
+      "Amphibious & Courier: Launch coastal naval landings or send a diplomatic packet directly to the node's owner.",
     ],
     icon: Zap,
     position: "top",
   },
   {
-    id: "step-feed",
-    targetId: "tour-telemetry-feed",
-    title: "Tactical & Environmental Telemetry Feed",
-    category: "Battle Reports & Intelligence",
-    description:
-      "Streams real-time tactical resolutions including wilderness skirmishes, amphibious landings, tropical hurricane gale damage, winter freeze troop losses, and treaty proclamations.",
-    keyFunctions: [
-      "Live Resolution Logs: Captures attacker/defender strength losses and tactical fort captures.",
-      "Weather Attrition: Reports seasonal gale and sub-zero freeze losses in the St. Lawrence and Great Lakes.",
-      "Category Filters: Filter feed entries by ALL, ❄ Weather, ⚓ Naval, ⚔ Combat, or 📜 Treaties.",
-      "Clear Feed: Clears historical entries to focus exclusively on the newest seasonal turn.",
-    ],
-    icon: Shield,
-    position: "top",
-  },
-  {
-    id: "step-faction",
-    targetId: "tour-faction-selector",
-    title: "Active Faction & Role Seat Switcher",
-    category: "Multi-Agent Architecture",
-    description:
-      "Allows the player or administrator to switch between all 10 historical factions and their 3 functional cabinet seats. Each role commands specific operational domains with dedicated AI personas.",
-    keyFunctions: [
-      "10 Sovereign Powers: Great Britain, France, Spain, Portugal, Dutch Republic, German States, Haudenosaunee, Seven Nations of Canada, Western Confederacy, Southeastern Nations.",
-      "Executive Seat: Directs grand strategy, war declarations, alliances, and high-level treaties.",
-      "Military Seat: Commands field armies, fleets, muster depots, and amphibious sieges.",
-      "Diplomatic/Commerce Seat: Manages merchant convoys, trade tariffs, wampum subsidies, and covenants.",
-    ],
-    icon: Sliders,
-    position: "left",
-  },
-  {
-    id: "step-ledger",
-    targetId: "tour-faction-ledger",
-    title: "National Imperial Ledger",
-    category: "Fiscal & Domestic State",
-    description:
-      "Monitors the five core domestic indicators governing imperial stability, military capacity, and diplomatic leverage.",
-    keyFunctions: [
-      "Treasury (£): Liquid bullion available for recruitment, subsidies, and trade missions.",
-      "Debt (£): Sovereign debt accumulated through deficit spending; charges 5% interest each turn.",
-      "Unrest (%): Civil tension and war weariness; unrest ≥ 70% triggers colonial assembly strikes or mutinies.",
-      "Standing Points (0-10): International prestige and covenant treaty credibility.",
-      "Assembly Support (%): Legislative approval for levying colonial taxes and provincial regiments.",
-    ],
-    icon: BookOpen,
-    position: "left",
-  },
-  {
-    id: "step-doctrine",
-    targetId: "tour-role-doctrine",
-    title: "Role Persona & Campaign Objectives",
-    category: "Strategic Direction",
-    description:
-      "Anchors the active seat in its authentic 18th-century cognitive mindset. Displays historical persona instructions, active strategic objectives with turn deadlines, and one-click AI consultation.",
-    keyFunctions: [
-      "1756 Persona Doctrine: Historical role brief (e.g. Earl of Loudoun, Marquis de Vaudreuil, Sir William Johnson).",
-      "Strategic Campaign Objective: Pinned multi-turn objective node with success reward and deadline.",
-      "Consult AI Button: Generates an instant, concise 150-word strategic advisory briefing.",
-      "Controller Badge: Indicates whether this seat is controlled by HUMAN or COMPUTER (ADVISOR/AUTONOMOUS).",
-    ],
-    icon: Sparkles,
-    position: "left",
-  },
-  {
     id: "step-tabs",
     targetId: "tour-command-tabs",
-    title: "Command Workspaces Navigation",
-    category: "Interface Navigation",
+    title: "Your Four Command Workspaces",
+    category: "6. Console Navigation",
     description:
-      "Toggles between four specialized command workspaces in the right-hand console.",
+      "Use these four tabs to switch between issuing orders, consulting your AI chief of staff, sending diplomatic couriers, and auditing the historical event chronicle.",
     keyFunctions: [
-      "Orders Tab: Formulate and submit formal military, economic, and diplomatic directives.",
-      "DeepSeek AI Tab: Direct interaction with autonomous and advisor LLM controllers.",
-      "Couriers Tab: Manage the diplomatic courier network and dispatch queues in transit.",
-      "Chronicle Tab: Inspect historical event records and the database event reconciler.",
+      "Orders Tab: Your main action board for submitting military, diplomatic, and economic directives.",
+      "DeepSeek AI Tab: Ask your AI advisor for help or let the AI generate orders for your seat.",
+      "Couriers Tab: Write secret letters, send alliance offers, and ratify peace treaties.",
+      "Events SQL Tab: Track active wars, captured forts, and superseded treaties across the campaign.",
     ],
-    icon: BookOpen,
+    icon: Sliders,
     position: "left",
   },
   {
     id: "step-orders",
     targetId: "tour-orders-matrix",
     tabSwitch: "ORDERS",
-    title: "Operational Directives Action Matrix",
-    category: "Order Submission Phase",
+    title: "Issuing Orders to Earn Your Victory Points",
+    category: "7. Submitting Directives",
     description:
-      "The primary operational engine. Issue up to 11 distinct orders spanning three grand domains: Military, Sovereignty, and Economy.",
+      "During the ORDER_SUBMISSION phase, pick any of the 11 operational directives here, choose your target corridor, allocate Treasury (£), and click 'Commit Order' to lock it into the current turn.",
     keyFunctions: [
-      "Military & Naval: MOVE (March force), RECRUIT (Muster troops), AMPHIBIOUS_ASSAULT (Fleet landing), RAID (Frontier attack).",
-      "Sovereignty & Treaties: COVENANT_BOUNDARY (Treaty line), DECLARE_WAR (Open war), TREATY_CONFERENCE (Peace talks).",
-      "Economy & Governance: EXTRACT (Harvest yield), TRADE (Merchant convoy), SUBSIDIZE (War bullion), ASSEMBLY_NEGOTIATION (Lobby legislature).",
-      "Order Parameters: Dynamic source node, target node, troop selection, and allocated treasury sliders.",
+      "Military & Naval (MOVE, RECRUIT, AMPHIBIOUS_ASSAULT, RAID): Capture key forts and sea zones for Military VP goals.",
+      "Sovereignty & Treaties (COVENANT_BOUNDARY, DECLARE_WAR, TREATY_CONFERENCE): Shape borders and peace terms for Executive VP goals.",
+      "Economy & Governance (EXTRACT, TRADE, SUBSIDIZE, ASSEMBLY_NEGOTIATION): Build wealth and alliances for Diplomatic/Commerce VP goals.",
+      "1-Click Adjacent Corridors: Click any connected node pill to set your destination and see weather hazard icons (❄/🌀/⚓).",
     ],
     shortcut: "Tab: Orders",
-    icon: Swords,
+    icon: Shield,
     position: "left",
   },
   {
     id: "step-ai",
     targetId: "tour-ai-advisor",
     tabSwitch: "ADVISOR",
-    title: "Token-Bounded Hybrid DeepSeek AI Controller",
-    category: "Artificial Intelligence",
+    title: "Consulting Your AI Advisor & Co-Pilot",
+    category: "8. Strategic Assistance",
     description:
-      "Houses the hybrid model router. Autonomous Executive roles route to deepseek-v4-pro with thinking enabled. Military, Commercial, and Advisor roles route to deepseek-flash with JSON mode, strictly bounded under 1,500 tokens.",
+      "Not sure what move best advances your character's objectives? Your AI Advisor analyzes the map, your treasury, and recent battles to give you role-specific advice in character.",
     keyFunctions: [
-      "Advisor Briefing: Generates an authentic 150-word strategic report analyzing events, unrest, and priorities.",
-      "Autonomous Orders: Invokes live DeepSeek to formulate up to 3 valid action orders adhering to AutonomousOrderSchema.",
-      "Persist Orders Toggle: Automatically stages generated AI orders into the database for the active turn.",
-      "Token Budget Meter: Monitors live prompt token consumption to preserve $O(1)$ efficiency.",
+      "Request 150-Word Advisor Briefing: Get an in-character strategic assessment of your threats and best opportunities.",
+      "Execute Autonomous JSON Orders: Let the AI formulate and stage valid turn orders for your character seat.",
+      "Historical Persona Fidelity: The AI thinks like your 18th-century character—whether William Pitt, Pontiac, or the Marquis de Montcalm.",
     ],
     shortcut: "Tab: DeepSeek AI",
     icon: Sparkles,
@@ -225,15 +182,14 @@ export const TOUR_STEPS: TourStep[] = [
     id: "step-dispatches",
     targetId: "tour-courier-system",
     tabSwitch: "DISPATCHES",
-    title: "Imperial Courier Dispatch Network",
-    category: "Asynchronous Diplomacy",
+    title: "Sending Diplomatic Couriers & Ratifying Treaties",
+    category: "9. Diplomacy & Peace",
     description:
-      "Recreates authentic 18th-century communication delays. Diplomatic letters travel via horse courier or transatlantic packet boat with realistic 1 to 3 turn transit delays, vulnerable to privateer interception.",
+      "In 1756, messages travel by horse courier or sailing packet. Send dispatches to coordinate with allies, demand concessions, or ratify a formal Treaty of Amity.",
     keyFunctions: [
-      "Dispatch Courier Form: Compose diplomatic offers, ultimatum letters, or subsidy requests.",
-      "Courier In-Transit Queue: Tracks active letters moving across the Atlantic or wilderness with countdown timers.",
-      "Interception Risk: Coastal privateers and frontier scouts can intercept dispatches before delivery.",
-      "Archived Messages: Review delivered diplomatic agreements, treaties, and threats.",
+      "Send Courier Packet: Choose a recipient faction and transit delay (1–4 turns); beware of naval or frontier interception!",
+      "Ratify Peace Treaty: Formally ends hostilities between two nations and automatically marks old war declarations SUPERSEDED.",
+      "In-Transit Queue: Monitor when your dispatches arrive or whether enemy scouts intercepted them.",
     ],
     shortcut: "Tab: Couriers",
     icon: Send,
@@ -243,18 +199,50 @@ export const TOUR_STEPS: TourStep[] = [
     id: "step-chronicle",
     targetId: "tour-chronicle-sql",
     tabSwitch: "CHRONICLE",
-    title: "Imperial Chronicle & SQL Event Reconciler",
-    category: "Historical Database Ledger",
+    title: "Reviewing the Imperial Chronicle",
+    category: "10. Campaign History",
     description:
-      "A complete historical ledger powered by PostgreSQL transactional reconciliation. Logs all declarations of war, fort captures, treaties, and off-map pulses.",
+      "Every battle, fort capture, war declaration, and peace treaty is permanently recorded here so you can track the unfolding story of your campaign.",
     keyFunctions: [
-      "Transactional Reconciler: Capturing a fort automatically supersedes expired sieges and prior garrison orders.",
-      "Turn Filtering: Review events by specific seasonal turns or categories (MILITARY, DIPLOMACY, COMMERCE, TREATY).",
-      "Historical Fidelity: Tracks real Seven Years' War events (Fall of Oswego, Louisbourg Expedition, Treaty of Easton).",
+      "ACTIVE Events: Ongoing wars, active sieges, and standing treaties that currently affect the map.",
+      "SUPERSEDED Events: Prior sieges or war declarations that have been overturned by a new conquest or peace treaty.",
+      "Turn-by-Turn Audit: Trace how your character's choices reshaped the Seven Years' War.",
     ],
     shortcut: "Tab: Events SQL",
     icon: ScrollText,
     position: "left",
+  },
+  {
+    id: "step-stepper",
+    targetId: "tour-header-stepper",
+    title: "Advancing the Clock: Phases & Seasonal Turns",
+    category: "11. Turn Progression",
+    description:
+      "Once you have submitted your character's orders and dispatches, use the top command bar to advance the game clock through the 4 seasonal phases or resolve the entire turn at once.",
+    keyFunctions: [
+      "4 Seasonal Phases: 1. INTEL_DISPATCH → 2. DIPLOMATIC_TRADE → 3. ORDER_SUBMISSION → 4. RESOLUTION.",
+      "Next Phase (Shortcut N): Advances one phase at a time so you can inspect intermediate trade yields or intelligence.",
+      "Resolve Full Turn (Shortcut R): Runs all 4 phases, executes combat and movement, and advances to the next season.",
+      "Admin Role Seating: Configure which of the 30 character seats are played by Humans vs. AI.",
+    ],
+    shortcut: "N / R",
+    icon: Compass,
+    position: "bottom",
+  },
+  {
+    id: "step-offmap",
+    targetId: "tour-offmap-ribbon",
+    title: "Watching Global Off-Map Theaters (Europe, India, Africa)",
+    category: "12. Global Context",
+    description:
+      "Events across the Atlantic directly affect your war chest. Keep an eye on this ribbon each turn to see how European land wars, East India Company revenues, and Atlantic shipping shift your finances.",
+    keyFunctions: [
+      "Europe Theater: Tracks British subsidies to Prussia and French continental army expenses.",
+      "India Carnatic Theater: Adds East India Company and Compagnie des Indes trade windfalls.",
+      "West Africa & Atlantic: Tracks neutral Dutch freight bonuses and Atlantic naval pressure.",
+    ],
+    icon: Globe,
+    position: "bottom",
   },
 ];
 
@@ -263,6 +251,9 @@ interface DashboardTourGuideProps {
   onClose: () => void;
   activeTab: "ORDERS" | "ADVISOR" | "DISPATCHES" | "CHRONICLE";
   setActiveTab: (tab: "ORDERS" | "ADVISOR" | "DISPATCHES" | "CHRONICLE") => void;
+  game?: any;
+  activeFaction?: any;
+  activeRole?: any;
 }
 
 export default function DashboardTourGuide({
@@ -270,12 +261,46 @@ export default function DashboardTourGuide({
   onClose,
   activeTab,
   setActiveTab,
+  game,
+  activeFaction,
+  activeRole,
 }: DashboardTourGuideProps) {
   const [currentStepIndex, setCurrentStepIndex] = useState(0);
   const [targetRect, setTargetRect] = useState<DOMRect | null>(null);
   const [showHandbookModal, setShowHandbookModal] = useState(false);
+  const [handbookTab, setHandbookTab] = useState<"OBJECTIVES" | "FUNCTIONS">(
+    "OBJECTIVES"
+  );
+  const [selectedHandbookFaction, setSelectedHandbookFaction] = useState<
+    FactionType | "ALL"
+  >("ALL");
 
   const step = TOUR_STEPS[currentStepIndex];
+
+  const activeRoleGuide = useMemo(() => {
+    const fType = (activeFaction?.type ?? FactionType.GREAT_BRITAIN) as FactionType;
+    const rType = (activeRole?.roleType ?? RoleType.EXECUTIVE) as RoleType;
+    return getCharacterRoleGuide(fType, rType);
+  }, [activeFaction?.type, activeRole?.roleType]);
+
+  const evaluationResult = useMemo(() => {
+    if (!game || !activeFaction) {
+      return {
+        earnedVP: 0,
+        totalRoleVP: activeRoleGuide.totalRoleVP,
+        evaluatedObjectives: activeRoleGuide.objectives.map((o) => ({
+          ...o,
+          isCompleted: false,
+          progressText: "In Progress",
+          progressPercent: 0,
+        })),
+      };
+    }
+    return evaluateCharacterObjectives(activeRoleGuide, game, activeFaction);
+  }, [game, activeFaction, activeRoleGuide]);
+
+  const evaluatedObjectives = evaluationResult.evaluatedObjectives;
+  const earnedVP = evaluationResult.earnedVP;
 
   // Update target rect on step change or window resize
   const updateTargetRect = useCallback(() => {
@@ -284,7 +309,6 @@ export default function DashboardTourGuide({
     if (el) {
       const rect = el.getBoundingClientRect();
       setTargetRect(rect);
-      // Smoothly scroll the element into view if not fully visible
       const isVisible =
         rect.top >= 0 &&
         rect.bottom <= window.innerHeight &&
@@ -301,12 +325,10 @@ export default function DashboardTourGuide({
   useEffect(() => {
     if (!isOpen) return;
 
-    // If step requests tab switch, switch tab immediately
     if (step.tabSwitch && step.tabSwitch !== activeTab) {
       setActiveTab(step.tabSwitch);
     }
 
-    // Wait for DOM render if tab switched
     const timer = setTimeout(() => {
       updateTargetRect();
     }, 150);
@@ -322,23 +344,26 @@ export default function DashboardTourGuide({
     };
   }, [isOpen, currentStepIndex, step, activeTab, setActiveTab, updateTargetRect]);
 
-  // Keyboard navigation: Left/Right arrows, Escape
   useEffect(() => {
     if (!isOpen) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
-      } else if (e.key === "ArrowRight") {
+        if (showHandbookModal) {
+          setShowHandbookModal(false);
+        } else {
+          onClose();
+        }
+      } else if (e.key === "ArrowRight" && !showHandbookModal) {
         handleNext();
-      } else if (e.key === "ArrowLeft") {
+      } else if (e.key === "ArrowLeft" && !showHandbookModal) {
         handlePrev();
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, currentStepIndex]);
+  }, [isOpen, currentStepIndex, showHandbookModal]);
 
   if (!isOpen) return null;
 
@@ -358,7 +383,6 @@ export default function DashboardTourGuide({
 
   const Icon = step.icon;
 
-  // Calculate tooltip position relative to target element
   const getTooltipStyle = () => {
     if (!targetRect) {
       return {
@@ -369,7 +393,7 @@ export default function DashboardTourGuide({
     }
 
     const margin = 16;
-    const tooltipWidth = 440;
+    const tooltipWidth = 460;
     const preferredPos = step.position || "bottom";
 
     let top = 0;
@@ -377,37 +401,62 @@ export default function DashboardTourGuide({
 
     if (preferredPos === "bottom") {
       top = targetRect.bottom + margin;
-      // If target element is wide (e.g. top header or ribbon), align tooltip to the right side near controls
       if (targetRect.width > 600) {
-        left = Math.max(margin, Math.min(targetRect.right - tooltipWidth - margin, window.innerWidth - tooltipWidth - margin));
+        left = Math.max(
+          margin,
+          Math.min(
+            targetRect.right - tooltipWidth - margin,
+            window.innerWidth - tooltipWidth - margin
+          )
+        );
       } else {
-        left = Math.max(margin, Math.min(targetRect.left, window.innerWidth - tooltipWidth - margin));
+        left = Math.max(
+          margin,
+          Math.min(targetRect.left, window.innerWidth - tooltipWidth - margin)
+        );
       }
     } else if (preferredPos === "top") {
-      top = Math.max(margin, targetRect.top - 460 - margin);
+      top = Math.max(margin, targetRect.top - 480 - margin);
       if (targetRect.width > 600) {
-        left = Math.max(margin, Math.min(targetRect.right - tooltipWidth - margin, window.innerWidth - tooltipWidth - margin));
+        left = Math.max(
+          margin,
+          Math.min(
+            targetRect.right - tooltipWidth - margin,
+            window.innerWidth - tooltipWidth - margin
+          )
+        );
       } else {
-        left = Math.max(margin, Math.min(targetRect.left, window.innerWidth - tooltipWidth - margin));
+        left = Math.max(
+          margin,
+          Math.min(targetRect.left, window.innerWidth - tooltipWidth - margin)
+        );
       }
     } else if (preferredPos === "left") {
-      top = Math.max(margin, Math.min(targetRect.top, window.innerHeight - 480));
+      top = Math.max(margin, Math.min(targetRect.top, window.innerHeight - 500));
       left = Math.max(margin, targetRect.left - tooltipWidth - margin);
     } else if (preferredPos === "right") {
-      top = Math.max(margin, Math.min(targetRect.top, window.innerHeight - 480));
-      left = Math.min(window.innerWidth - tooltipWidth - margin, targetRect.right + margin);
+      top = Math.max(margin, Math.min(targetRect.top, window.innerHeight - 500));
+      left = Math.min(
+        window.innerWidth - tooltipWidth - margin,
+        targetRect.right + margin
+      );
     } else {
-      // Center fallback
-      top = Math.max(margin, (window.innerHeight - 460) / 2);
+      top = Math.max(margin, (window.innerHeight - 480) / 2);
       left = Math.max(margin, (window.innerWidth - tooltipWidth) / 2);
     }
 
-    // Guard bounds so tooltip is always visible
-    top = Math.max(12, Math.min(top, window.innerHeight - 480));
+    top = Math.max(12, Math.min(top, window.innerHeight - 500));
     left = Math.max(12, Math.min(left, window.innerWidth - tooltipWidth - 12));
 
     return { top: `${top}px`, left: `${left}px` };
   };
+
+  const filteredHandbookGuides =
+    selectedHandbookFaction === "ALL"
+      ? CHARACTER_ROLE_GUIDES
+      : CHARACTER_ROLE_GUIDES.filter(
+          (g) => g.factionType === selectedHandbookFaction
+        );
 
   return (
     <div className="fixed inset-0 z-[99999] pointer-events-auto">
@@ -428,24 +477,19 @@ export default function DashboardTourGuide({
             height: `${targetRect.height + 16}px`,
           }}
         >
-          {/* Pulsing Animated Border */}
-          <div className="w-full h-full rounded-2xl border-2 border-amber-400 ring-4 ring-amber-500/40 shadow-[0_0_50px_rgba(245,158,11,0.5)] animate-pulse" />
+          <div className="syw-tour-spotlight" />
 
-          {/* Attention Badge Beacon */}
           <div className="absolute -top-3.5 -left-3.5 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500 text-stone-950 text-[10px] font-mono font-bold shadow-lg">
             <Sparkles className="w-3 h-3 animate-spin" />
-            <span>Target Active</span>
+            <span>Your Command Focus</span>
           </div>
         </div>
       )}
 
-      {/* Floating Animated Guide Card */}
-      <div
-        className="fixed z-[100000] w-[440px] max-w-[calc(100vw-24px)] bg-stone-900/98 border border-amber-500/80 rounded-2xl p-5 shadow-2xl text-stone-100 flex flex-col justify-between transition-all duration-300 backdrop-blur-md"
-        style={getTooltipStyle()}
-      >
+      {/* Floating Animated Player Guide Card */}
+      <div className="syw-tour-card" style={getTooltipStyle()}>
         <div>
-          {/* Card Header: Step Counter & Badges */}
+          {/* Card Header */}
           <div className="flex items-center justify-between gap-2 pb-3 border-b border-stone-800">
             <div className="flex items-center gap-2">
               <div className="p-1.5 rounded-lg bg-amber-950 border border-amber-600/70 text-amber-300">
@@ -464,11 +508,14 @@ export default function DashboardTourGuide({
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                onClick={() => setShowHandbookModal(true)}
-                className="p-1 rounded text-stone-400 hover:text-amber-300 hover:bg-stone-800 transition cursor-pointer"
-                title="Open Complete Reference Handbook"
+                onClick={() => {
+                  setHandbookTab("OBJECTIVES");
+                  setShowHandbookModal(true);
+                }}
+                className="px-2 py-1 rounded text-[10px] font-mono font-bold bg-amber-950/90 text-amber-300 border border-amber-700/70 hover:bg-amber-900 transition cursor-pointer flex items-center gap-1"
+                title="View All 30 Character Objectives & Victory Points"
               >
-                <BookOpen className="w-4 h-4" />
+                <Target className="w-3 h-3" /> All Character VPs
               </button>
               <button
                 type="button"
@@ -481,8 +528,52 @@ export default function DashboardTourGuide({
             </div>
           </div>
 
+          {/* Active Character Banner on Step 1 */}
+          {currentStepIndex === 0 && (
+            <div className="mt-3 p-2.5 rounded-xl bg-amber-950/40 border border-amber-700/60 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-amber-200">
+                  Playing As: {activeRoleGuide.roleTitle} (
+                  {activeRoleGuide.characterPersonaName})
+                </span>
+                <span className="syw-vp-badge">
+                  {earnedVP} / {activeRoleGuide.totalRoleVP} VP Earned
+                </span>
+              </div>
+              <p className="text-[11px] text-stone-300 leading-snug">
+                {activeRoleGuide.playerBriefing}
+              </p>
+              <div className="space-y-1 pt-1">
+                {evaluatedObjectives.map((obj) => (
+                  <div
+                    key={obj.id}
+                    className="flex items-center justify-between text-[10px] bg-stone-950/80 px-2 py-1 rounded border border-stone-800"
+                  >
+                    <span className="flex items-center gap-1.5 text-stone-200 font-medium truncate">
+                      {obj.isCompleted ? (
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                      ) : (
+                        <Circle className="w-3 h-3 text-amber-400 shrink-0" />
+                      )}
+                      {obj.title}
+                    </span>
+                    <span
+                      className={
+                        obj.isCompleted
+                          ? "syw-vp-badge-completed"
+                          : "syw-vp-badge"
+                      }
+                    >
+                      +{obj.victoryPoints} VP
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Card Title & Description */}
-          <div className="mt-3.5 space-y-2">
+          <div className="mt-3 space-y-1.5">
             <h3 className="text-base font-serif font-bold text-amber-100 leading-snug">
               {step.title}
             </h3>
@@ -492,9 +583,9 @@ export default function DashboardTourGuide({
           </div>
 
           {/* Key Function Bullets */}
-          <div className="mt-3.5 pt-3 border-t border-stone-800/80 space-y-1.5 max-h-48 overflow-y-auto pr-1">
+          <div className="mt-3 pt-2.5 border-t border-stone-800/80 space-y-1.5 max-h-40 overflow-y-auto pr-1">
             <span className="text-[10px] font-mono uppercase tracking-wider text-stone-400 font-bold block mb-1">
-              Core Capabilities:
+              How You Use This as a Player:
             </span>
             {step.keyFunctions.map((fn, idx) => {
               const parts = fn.split(":");
@@ -520,9 +611,9 @@ export default function DashboardTourGuide({
           </div>
 
           {step.shortcut && (
-            <div className="mt-3 flex items-center justify-between text-[10px] font-mono text-stone-400 bg-stone-950 px-2.5 py-1 rounded border border-stone-800">
+            <div className="mt-2.5 flex items-center justify-between text-[10px] font-mono text-stone-400 bg-stone-950 px-2.5 py-1 rounded border border-stone-800">
               <span className="flex items-center gap-1 text-amber-300/90">
-                <Keyboard className="w-3 h-3" /> Keyboard Shortcut:
+                <Keyboard className="w-3 h-3" /> Player Shortcut:
               </span>
               <span className="px-1.5 py-0.5 rounded bg-stone-850 text-amber-200 font-bold border border-stone-700">
                 {step.shortcut}
@@ -554,7 +645,7 @@ export default function DashboardTourGuide({
               type="button"
               disabled={currentStepIndex === 0}
               onClick={handlePrev}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold bg-stone-800 hover:bg-stone-700 text-stone-300 border border-stone-700 disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
+              className="syw-btn-secondary !px-3 !py-1.5"
             >
               <ChevronLeft className="w-3.5 h-3.5" /> Back
             </button>
@@ -562,11 +653,11 @@ export default function DashboardTourGuide({
             <button
               type="button"
               onClick={handleNext}
-              className="inline-flex items-center gap-1 px-3.5 py-1.5 rounded-lg text-xs font-bold bg-amber-500 hover:bg-amber-400 text-stone-950 shadow-md transition cursor-pointer"
+              className="syw-btn-primary !px-3.5 !py-1.5"
             >
               {currentStepIndex === TOUR_STEPS.length - 1 ? (
                 <>
-                  <Check className="w-3.5 h-3.5" /> Finish Tour
+                  <Check className="w-3.5 h-3.5" /> Enter War Room
                 </>
               ) : (
                 <>
@@ -578,90 +669,240 @@ export default function DashboardTourGuide({
         </div>
       </div>
 
-      {/* Complete Reference Handbook Modal */}
+      {/* Complete Player Handbook & 30-Character Victory Points Directory Modal */}
       {showHandbookModal && (
         <div className="fixed inset-0 z-[100001] bg-stone-950/90 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-stone-900 border border-stone-700 rounded-2xl max-w-4xl w-full max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-stone-800 bg-stone-950/80">
+          <div className="bg-stone-900 border border-stone-700 rounded-2xl max-w-5xl w-full max-h-[88vh] flex flex-col shadow-2xl overflow-hidden">
+            {/* Modal Header */}
+            <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 border-b border-stone-800 bg-stone-950/90">
               <div className="flex items-center gap-2.5">
                 <div className="p-2 rounded-lg bg-amber-950 border border-amber-600 text-amber-300">
                   <BookOpen className="w-5 h-5" />
                 </div>
                 <div>
                   <h2 className="text-lg font-serif font-bold text-amber-100">
-                    Seven Years&apos; War Dashboard Reference Handbook
+                    Player&apos;s Character Objectives &amp; Command Handbook
                   </h2>
                   <p className="text-xs text-stone-400">
-                    Complete reference guide to all simulator functions, mechanics, and keyboard shortcuts
+                    Every playable character&apos;s mission, Victory Point (VP) goals, and War Room controls
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setShowHandbookModal(false)}
-                className="p-1.5 rounded-lg text-stone-400 hover:text-stone-200 hover:bg-stone-800 cursor-pointer"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
 
-            <div className="flex-1 overflow-y-auto p-6 space-y-6">
-              {TOUR_STEPS.map((s, idx) => {
-                const StepIcon = s.icon;
-                return (
-                  <div
-                    key={s.id}
-                    className="bg-stone-950/80 border border-stone-800 rounded-xl p-4 space-y-2 hover:border-amber-600/50 transition"
+              <div className="flex items-center gap-2">
+                <div className="flex bg-stone-900 p-1 rounded-lg border border-stone-800 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => setHandbookTab("OBJECTIVES")}
+                    className={`px-3 py-1 rounded-md font-semibold cursor-pointer transition ${
+                      handbookTab === "OBJECTIVES"
+                        ? "bg-amber-600 text-stone-950 font-bold"
+                        : "text-stone-400 hover:text-stone-200"
+                    }`}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="w-6 h-6 rounded-full bg-amber-950 border border-amber-700 text-amber-300 flex items-center justify-center font-mono text-xs font-bold">
-                          {idx + 1}
-                        </span>
-                        <StepIcon className="w-4 h-4 text-amber-400" />
-                        <h4 className="font-bold text-amber-200 text-sm">
-                          {s.title}
-                        </h4>
-                      </div>
-                      <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-stone-800 text-stone-300">
-                        {s.category}
-                      </span>
-                    </div>
+                    Character Objectives &amp; VPs (30 Seats)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setHandbookTab("FUNCTIONS")}
+                    className={`px-3 py-1 rounded-md font-semibold cursor-pointer transition ${
+                      handbookTab === "FUNCTIONS"
+                        ? "bg-amber-600 text-stone-950 font-bold"
+                        : "text-stone-400 hover:text-stone-200"
+                    }`}
+                  >
+                    Dashboard Controls (12 Steps)
+                  </button>
+                </div>
 
-                    <p className="text-xs text-stone-300 leading-relaxed pl-8">
-                      {s.description}
-                    </p>
-
-                    <div className="pl-8 pt-1 space-y-1">
-                      {s.keyFunctions.map((fn, fIdx) => (
-                        <div
-                          key={fIdx}
-                          className="text-[11px] text-stone-400 flex items-start gap-1.5"
-                        >
-                          <span className="text-amber-400 font-bold">•</span>
-                          <span>{fn}</span>
-                        </div>
-                      ))}
-                    </div>
-
-                    {s.shortcut && (
-                      <div className="pl-8 pt-1 text-[10px] font-mono text-amber-400/90">
-                        Keyboard Shortcut: <span className="bg-stone-900 px-1.5 py-0.5 rounded border border-stone-700">{s.shortcut}</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+                <button
+                  type="button"
+                  onClick={() => setShowHandbookModal(false)}
+                  className="p-1.5 rounded-lg text-stone-400 hover:text-stone-200 hover:bg-stone-800 cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
             </div>
 
-            <div className="p-4 border-t border-stone-800 bg-stone-950/80 flex justify-between items-center text-xs">
+            {/* Modal Body */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-5">
+              {handbookTab === "OBJECTIVES" ? (
+                <>
+                  {/* Faction Filter Bar */}
+                  <div className="flex flex-wrap items-center justify-between gap-2 bg-stone-950 p-3 rounded-xl border border-stone-800">
+                    <div className="text-xs text-stone-300">
+                      <span className="font-bold text-amber-300">
+                        Victory Point System:
+                      </span>{" "}
+                      Each character seat commands{" "}
+                      <span className="font-mono font-bold text-amber-200">
+                        3 Objectives = 10 VP
+                      </span>{" "}
+                      (30 VP per Nation across all 3 seats).
+                    </div>
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="text-stone-400 font-mono text-[11px]">
+                        Filter Nation:
+                      </span>
+                      <select
+                        value={selectedHandbookFaction}
+                        onChange={(e) =>
+                          setSelectedHandbookFaction(e.target.value as any)
+                        }
+                        className="px-2.5 py-1.5 rounded bg-stone-900 border border-stone-700 text-amber-100 text-xs font-semibold"
+                      >
+                        <option value="ALL">All 10 Factions (30 Characters)</option>
+                        {Object.values(FactionType).map((ft) => (
+                          <option key={ft} value={ft}>
+                            {ft}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Character Cards Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {filteredHandbookGuides.map((guide) => {
+                      const isCurrentSeat =
+                        activeFaction?.type === guide.factionType &&
+                        activeRole?.roleType === guide.roleType;
+
+                      return (
+                        <div
+                          key={`${guide.factionType}-${guide.roleType}`}
+                          className={`rounded-xl p-4 border space-y-3 transition ${
+                            isCurrentSeat
+                              ? "bg-amber-950/25 border-amber-500 ring-1 ring-amber-500/50"
+                              : "bg-stone-950/90 border-stone-800 hover:border-stone-700"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-2 border-b border-stone-800 pb-2.5">
+                            <div>
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-stone-800 text-amber-300 font-bold">
+                                  {guide.factionDisplayName}
+                                </span>
+                                <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-stone-900 border border-stone-700 text-stone-300">
+                                  {guide.roleType}
+                                </span>
+                                {isCurrentSeat && (
+                                  <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-amber-500 text-stone-950 font-bold">
+                                    Your Seat
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className="text-sm font-serif font-bold text-amber-100 mt-1.5">
+                                {guide.roleTitle} — {guide.characterPersonaName}
+                              </h4>
+                            </div>
+                            <span className="syw-vp-badge shrink-0">
+                              {guide.totalRoleVP} VP Total
+                            </span>
+                          </div>
+
+                          <p className="text-xs text-stone-300 leading-relaxed">
+                            {guide.playerBriefing}
+                          </p>
+
+                          <div className="text-[11px] text-amber-200/90 bg-stone-900/90 px-2.5 py-1.5 rounded border border-stone-800">
+                            <strong className="text-amber-300">
+                              Playstyle Tip:
+                            </strong>{" "}
+                            {guide.strategicPlaystyle}
+                          </div>
+
+                          <div className="space-y-2 pt-1">
+                            <div className="text-[10px] font-mono uppercase tracking-wider text-stone-400 font-bold">
+                              Character Objectives &amp; Victory Points:
+                            </div>
+                            {guide.objectives.map((obj) => (
+                              <div
+                                key={obj.id}
+                                className="p-2.5 rounded-lg bg-stone-900/80 border border-stone-800/90 space-y-1"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-xs font-bold text-stone-100">
+                                    {obj.title}
+                                  </span>
+                                  <span className="syw-vp-badge shrink-0">
+                                    +{obj.victoryPoints} VP
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-stone-300">
+                                  {obj.description}
+                                </p>
+                                <p className="text-[10px] font-mono text-emerald-300/90">
+                                  How to Complete: {obj.howToComplete}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-4">
+                  {TOUR_STEPS.map((s, idx) => {
+                    const StepIcon = s.icon;
+                    return (
+                      <div
+                        key={s.id}
+                        className="bg-stone-950/80 border border-stone-800 rounded-xl p-4 space-y-2 hover:border-amber-600/50 transition"
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="w-6 h-6 rounded-full bg-amber-950 border border-amber-700 text-amber-300 flex items-center justify-center font-mono text-xs font-bold">
+                              {idx + 1}
+                            </span>
+                            <StepIcon className="w-4 h-4 text-amber-400" />
+                            <h4 className="font-bold text-amber-200 text-sm">
+                              {s.title}
+                            </h4>
+                          </div>
+                          <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-stone-800 text-stone-300">
+                            {s.category}
+                          </span>
+                        </div>
+
+                        <p className="text-xs text-stone-300 leading-relaxed pl-8">
+                          {s.description}
+                        </p>
+
+                        <div className="pl-8 pt-1 space-y-1">
+                          {s.keyFunctions.map((fn, fIdx) => (
+                            <div
+                              key={fIdx}
+                              className="text-[11px] text-stone-400 flex items-start gap-1.5"
+                            >
+                              <span className="text-amber-400 font-bold">•</span>
+                              <span>{fn}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-4 border-t border-stone-800 bg-stone-950/90 flex justify-between items-center text-xs">
               <span className="text-stone-400">
-                Tip: Press <kbd className="px-1.5 py-0.5 bg-stone-800 rounded border border-stone-700 text-amber-200 font-mono">?</kbd> or click Dashboard Guide anytime to launch the animated overlay.
+                Tip: Press{" "}
+                <kbd className="px-1.5 py-0.5 bg-stone-800 rounded border border-stone-700 text-amber-200 font-mono">
+                  ?
+                </kbd>{" "}
+                anytime to toggle this interactive player guide.
               </span>
               <button
                 type="button"
                 onClick={() => setShowHandbookModal(false)}
-                className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-400 text-stone-950 font-bold transition cursor-pointer"
+                className="syw-btn-primary"
               >
                 Close Handbook
               </button>

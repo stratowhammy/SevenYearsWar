@@ -49,8 +49,14 @@ import {
   ShieldCheck,
   Filter,
   HelpCircle,
+  Target,
+  Circle,
 } from "lucide-react";
 import DashboardTourGuide from "@/components/dashboard/DashboardTourGuide";
+import {
+  getCharacterRoleGuide,
+  evaluateCharacterObjectives,
+} from "@/lib/character-objectives";
 
 const DynamicMapViewer = dynamic(
   () => import("@/components/map/MapViewer"),
@@ -110,6 +116,48 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
       activeFaction?.roles[0],
     [activeFaction, selectedRoleType]
   );
+
+  const activeCharacterGuide = useMemo(() => {
+    const fType = (activeFaction?.type ??
+      FactionType.GREAT_BRITAIN) as FactionType;
+    const rType = (activeRole?.roleType ?? RoleType.EXECUTIVE) as RoleType;
+    return getCharacterRoleGuide(fType, rType);
+  }, [activeFaction?.type, activeRole?.roleType]);
+
+  const roleEvalResult = useMemo(() => {
+    if (!activeFaction) {
+      return {
+        earnedVP: 0,
+        totalRoleVP: activeCharacterGuide.totalRoleVP,
+        evaluatedObjectives: [],
+      };
+    }
+    return evaluateCharacterObjectives(
+      activeCharacterGuide,
+      game,
+      activeFaction
+    );
+  }, [game, activeFaction, activeCharacterGuide]);
+
+  const evaluatedCharacterObjectives = roleEvalResult.evaluatedObjectives;
+  const earnedRoleVP = roleEvalResult.earnedVP;
+
+  const earnedFactionVP = useMemo(() => {
+    if (!activeFaction) return 0;
+    const roles: RoleType[] = [
+      RoleType.EXECUTIVE,
+      RoleType.MILITARY,
+      RoleType.DIPLOMATIC_COMMERCE,
+    ];
+    return roles.reduce((total, rType) => {
+      const g = getCharacterRoleGuide(
+        activeFaction.type as FactionType,
+        rType
+      );
+      const res = evaluateCharacterObjectives(g, game, activeFaction);
+      return total + res.earnedVP;
+    }, 0);
+  }, [game, activeFaction]);
 
   const selectedNode = useMemo(
     () =>
@@ -397,12 +445,9 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
   const offMap = (game.offMapModifiers ?? {}) as Record<string, any>;
 
   return (
-    <div className="min-h-screen bg-stone-950 text-stone-100 flex flex-col">
+    <div className="syw-shell">
       {/* Top Imperial Command Header */}
-      <header
-        id="tour-header-stepper"
-        className="border-b border-stone-800 bg-stone-900/95 px-6 py-3.5"
-      >
+      <header id="tour-header-stepper" className="syw-header">
         <div className="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-amber-950/80 border border-amber-700/60 text-amber-300">
@@ -454,7 +499,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
               disabled={isPending}
               onClick={handleAdvancePhase}
               data-testid="warroom-advance-phase"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-stone-800 hover:bg-stone-700 text-amber-200 border border-stone-700 transition cursor-pointer shadow-sm"
+              className="syw-btn-secondary"
               title="Advance to next phase (Shortcut: N)"
             >
               <Play className="w-3.5 h-3.5" /> Next Phase
@@ -468,7 +513,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
               disabled={isPending}
               onClick={handleExecuteFullTurn}
               data-testid="warroom-resolve-turn"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-500 text-stone-950 transition cursor-pointer shadow-md"
+              className="syw-btn-primary"
               title="Resolve entire turn cycle (Shortcut: R)"
             >
               <FastForward className="w-3.5 h-3.5" /> Resolve Full Turn
@@ -481,11 +526,11 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
               type="button"
               onClick={() => setIsTourOpen(true)}
               data-testid="btn-dashboard-tour"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-amber-950/80 hover:bg-amber-900 text-amber-200 border border-amber-600/70 transition cursor-pointer shadow-sm hover:border-amber-400"
-              title="Interactive Dashboard Guide & Animated Overlay (Shortcut: ?)"
+              className="syw-btn-guide"
+              title="Interactive Player Guide & Character Victory Points (Shortcut: ?)"
             >
               <HelpCircle className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
-              <span>Dashboard Guide</span>
+              <span>Player Guide &amp; VPs</span>
               <span className="text-[10px] font-mono text-amber-300 bg-stone-950 px-1.5 py-0.2 rounded border border-amber-700/60">
                 ?
               </span>
@@ -885,10 +930,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
         {/* Right Column: Faction & Role Command Console */}
         <div className="lg:col-span-5 flex flex-col gap-4">
           {/* Active Faction & Role Selector Card */}
-          <div
-            id="tour-faction-selector"
-            className="bg-stone-900/90 border border-stone-800 rounded-xl p-4 space-y-3"
-          >
+          <div id="tour-faction-selector" className="syw-card space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] font-mono uppercase tracking-wider text-stone-400 mb-1">
@@ -939,7 +981,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                 id="tour-faction-ledger"
                 className="grid grid-cols-5 gap-2 pt-1 text-xs font-mono"
               >
-                <div className="bg-stone-950 p-2 rounded border border-stone-800">
+                <div className="syw-ledger-stat">
                   <div className="text-[10px] text-stone-400 flex items-center gap-1">
                     <Coins className="w-3 h-3 text-amber-400" /> Treasury
                   </div>
@@ -947,13 +989,13 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     {activeFaction.treasury} £
                   </div>
                 </div>
-                <div className="bg-stone-950 p-2 rounded border border-stone-800">
+                <div className="syw-ledger-stat">
                   <div className="text-[10px] text-stone-400">Debt</div>
                   <div className="text-sm font-bold text-red-300">
                     {activeFaction.debt} £
                   </div>
                 </div>
-                <div className="bg-stone-950 p-2 rounded border border-stone-800">
+                <div className="syw-ledger-stat">
                   <div className="text-[10px] text-stone-400 flex items-center gap-1">
                     <Flame className="w-3 h-3 text-orange-400" /> Unrest
                   </div>
@@ -961,7 +1003,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     {activeFaction.unrestIndex}%
                   </div>
                 </div>
-                <div className="bg-stone-950 p-2 rounded border border-stone-800">
+                <div className="syw-ledger-stat">
                   <div className="text-[10px] text-stone-400 flex items-center gap-1">
                     <Award className="w-3 h-3 text-emerald-400" /> Standing
                   </div>
@@ -969,7 +1011,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     {activeFaction.standingPoints} pts
                   </div>
                 </div>
-                <div className="bg-stone-950 p-2 rounded border border-stone-800">
+                <div className="syw-ledger-stat">
                   <div className="text-[10px] text-stone-400">Assembly</div>
                   <div className="text-sm font-bold text-sky-300">
                     {activeFaction.assemblySupport ?? 50}%
@@ -981,15 +1023,25 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
             {activeRole && (
               <div
                 id="tour-role-doctrine"
-                className="text-xs bg-stone-950/90 px-3 py-2.5 rounded-lg border border-stone-800/90 space-y-2"
+                className="syw-subcard text-xs space-y-2.5"
               >
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
-                    <span className="font-semibold text-amber-200">
-                      {activeRole.title}
-                    </span>
-                    <span className="block text-[11px] text-stone-400 truncate max-w-xs">
-                      {activeRole.aiPersonaPrompt}
+                    <div className="flex items-center gap-2">
+                      <span className="font-serif font-bold text-amber-200 text-sm">
+                        {activeRole.title}
+                      </span>
+                      <span
+                        className="syw-vp-badge"
+                        data-testid="role-victory-points-badge"
+                      >
+                        <Target className="w-3 h-3" /> Role VP: {earnedRoleVP}/
+                        {activeCharacterGuide.totalRoleVP} • Nation VP:{" "}
+                        {earnedFactionVP}/30
+                      </span>
+                    </div>
+                    <span className="block text-[11px] text-stone-300 mt-0.5 leading-snug">
+                      {activeCharacterGuide.playerBriefing}
                     </span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -1009,9 +1061,66 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     </span>
                   </div>
                 </div>
+
+                {/* Character Victory Point Objectives Checklist */}
+                <div
+                  className="pt-2 border-t border-stone-800/80 space-y-1.5"
+                  data-testid="character-objectives-panel"
+                >
+                  <div className="flex items-center justify-between text-[10px] font-mono uppercase tracking-wider text-amber-300/90 font-bold">
+                    <span>Your Character Objectives &amp; Victory Points</span>
+                    <span className="text-stone-400">
+                      Complete Goals to Score VP
+                    </span>
+                  </div>
+                  <div className="space-y-1.5">
+                    {evaluatedCharacterObjectives.map((obj) => (
+                      <div
+                        key={obj.id}
+                        className={
+                          obj.isCompleted
+                            ? "syw-objective-card-completed"
+                            : "syw-objective-card"
+                        }
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-1.5 font-semibold text-stone-100">
+                            {obj.isCompleted ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            ) : (
+                              <Circle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+                            )}
+                            <span>{obj.title}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <span className="text-[10px] font-mono text-stone-400">
+                              {obj.progressText}
+                            </span>
+                            <span
+                              className={
+                                obj.isCompleted
+                                  ? "syw-vp-badge-completed"
+                                  : "syw-vp-badge"
+                              }
+                            >
+                              +{obj.victoryPoints} VP
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-stone-300 leading-snug pl-5">
+                          {obj.description}
+                        </p>
+                        <div className="text-[10px] font-mono text-emerald-300/90 pl-5">
+                          How to Achieve: {obj.howToComplete}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
                 {activeRole.strategicObjective && (
                   <div
-                    className="flex items-center justify-between pt-1 border-t border-stone-800/80 text-[11px] font-mono text-purple-300"
+                    className="flex items-center justify-between pt-1.5 border-t border-stone-800/80 text-[11px] font-mono text-purple-300"
                     data-testid="role-strategic-objective"
                   >
                     <span>
@@ -1648,6 +1757,9 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
         onClose={() => setIsTourOpen(false)}
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        game={game}
+        activeFaction={activeFaction}
+        activeRole={activeRole}
       />
     </div>
   );
