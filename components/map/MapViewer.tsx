@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   MapContainer,
   TileLayer,
@@ -85,20 +85,20 @@ function createHistoricalMarkerIcon(
   }
 
   const covenantHalo = isCovenanted
-    ? `<circle cx="14" cy="13" r="12.5" fill="none" stroke="#f59e0b" stroke-width="1.6" stroke-dasharray="3,2"/>`
+    ? `<circle cx="14" cy="13" r="12.5" fill="none" stroke="#f59e0b" stroke-width="1.8" stroke-dasharray="3,2"/>`
     : "";
 
   const ringStyle = isSelected
-    ? "filter: drop-shadow(0 0 8px #f59e0b); transform: scale(1.18);"
+    ? "filter: drop-shadow(0 0 10px #f59e0b); transform: scale(1.15);"
     : "filter: drop-shadow(0 2px 4px rgba(0,0,0,0.85));";
 
   const strengthBadge =
     totalStrength > 0
-      ? `<span style="position:absolute;top:-7px;right:-10px;background:#1c1917;color:#fde68a;border:1px solid #d97706;border-radius:999px;padding:0 4px;font-size:9px;font-family:monospace;font-weight:700;line-height:14px;">${totalStrength}</span>`
+      ? `<span style="position:absolute;top:-7px;right:-10px;background:#78350f;color:#fef3c7;border:1px solid #f59e0b;border-radius:999px;padding:0 4px;font-size:9px;font-family:monospace;font-weight:700;line-height:14px;box-shadow:0 1px 3px rgba(0,0,0,0.7);">${totalStrength}</span>`
       : "";
 
   const html = `
-    <div style="position:relative;display:flex;flex-direction:column;align-items:center;${ringStyle}">
+    <div style="position:relative;display:flex;flex-direction:column;align-items:center;${ringStyle}cursor:pointer;">
       <div style="position:relative;width:28px;height:26px;">
         <svg width="28" height="26" viewBox="0 0 28 26" xmlns="http://www.w3.org/2000/svg">
           ${covenantHalo}
@@ -106,7 +106,7 @@ function createHistoricalMarkerIcon(
         </svg>
         ${strengthBadge}
       </div>
-      <span style="margin-top:1px;background:rgba(28,25,23,0.88);color:#f5f5f4;border:1px solid rgba(168,162,158,0.45);padding:0px 5px;border-radius:3px;font-size:10px;font-weight:600;white-space:nowrap;letter-spacing:0.01em;">
+      <span style="margin-top:2px;background:rgba(24,24,27,0.92);color:#f4f4f5;border:1px solid ${isSelected ? "#f59e0b" : "rgba(168,162,158,0.4)"};padding:1px 5px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap;letter-spacing:0.01em;box-shadow:0 2px 4px rgba(0,0,0,0.7);">
         ${nodeName}
       </span>
     </div>
@@ -115,7 +115,7 @@ function createHistoricalMarkerIcon(
   return L.divIcon({
     html,
     className: "syw-custom-node-icon",
-    iconSize: [28, 42],
+    iconSize: [28, 44],
     iconAnchor: [14, 15],
   });
 }
@@ -130,6 +130,8 @@ export default function MapViewer({
   showSeasonalEdges = true,
   covenantedNodeIds = [],
 }: MapViewerProps) {
+  const [isLegendOpen, setIsLegendOpen] = useState(false);
+
   const covenantedSet = useMemo(
     () => new Set(covenantedNodeIds),
     [covenantedNodeIds]
@@ -187,35 +189,59 @@ export default function MapViewer({
         )}
       </div>
 
-      {/* Bottom-Left Map Legend */}
-      <div className="absolute bottom-4 left-3 z-[500] bg-stone-950/90 border border-stone-700/80 rounded-lg p-3 text-[11px] text-stone-200 space-y-1.5 shadow-xl backdrop-blur-sm">
-        <div className="font-bold uppercase tracking-wider text-amber-300 text-[10px]">
-          Cartographic Legend
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-block w-3 h-3 bg-red-600 border border-amber-200 rotate-45" />
-          <span>Bastion Fort / Citadel / Council Fire</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-block w-4 h-0.5 bg-cyan-300 border-b border-dashed border-cyan-300" />
-          <span>Winter Freeze Corridor (2.5x Movement Cost)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-block w-4 h-0.5 bg-orange-400" />
-          <span>Caribbean Hurricane Lane (1.75x Movement Cost)</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-block w-3 h-3 rounded-sm bg-sky-500/30 border border-sky-400" />
-          <span>Navigable Sea Zone Polygon</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="inline-block w-3 h-3 rounded-full border border-dashed border-amber-400" />
-          <span>Indigenous Covenant Boundary (Easton / Proclamation)</span>
-        </div>
+      {/* Bottom-Left Collapsible Map Legend */}
+      <div className="absolute bottom-4 left-3 z-[500]">
+        {!isLegendOpen ? (
+          <button
+            type="button"
+            onClick={() => setIsLegendOpen(true)}
+            className="flex items-center gap-1.5 bg-stone-950/90 hover:bg-stone-900 border border-amber-800/60 rounded-lg px-3 py-1.5 text-xs text-amber-200 shadow-xl backdrop-blur-sm transition cursor-pointer"
+          >
+            <span className="w-2 h-2 rounded-full bg-amber-400"></span>
+            <span className="font-semibold text-[11px] uppercase tracking-wide">Map Legend</span>
+            <span className="text-stone-400 text-[10px]">▴</span>
+          </button>
+        ) : (
+          <div className="bg-stone-950/95 border border-amber-800/80 rounded-lg p-3 text-[11px] text-stone-200 space-y-1.5 shadow-2xl backdrop-blur-md max-w-xs transition-all">
+            <div className="flex items-center justify-between pb-1 border-b border-stone-800">
+              <span className="font-bold uppercase tracking-wider text-amber-300 text-[10px]">
+                Cartographic Legend
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsLegendOpen(false)}
+                className="text-stone-400 hover:text-stone-100 text-xs px-1 cursor-pointer"
+                title="Minimize Legend"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-3 h-3 bg-red-600 border border-amber-200 rotate-45" />
+              <span>Bastion Fort / Citadel / Council Fire</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-4 h-0.5 bg-cyan-300 border-b border-dashed border-cyan-300" />
+              <span>Winter Freeze Corridor (2.5x Cost)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-4 h-0.5 bg-orange-400" />
+              <span>Caribbean Hurricane Lane (1.75x Cost)</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-3 h-3 rounded-sm bg-sky-500/30 border border-sky-400" />
+              <span>Navigable Sea Zone Polygon</span>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="inline-block w-3 h-3 rounded-full border border-dashed border-amber-400" />
+              <span>Indigenous Covenant Boundary</span>
+            </div>
+          </div>
+        )}
       </div>
 
       <MapContainer
-        center={[31.5, -75.0]}
+        center={[35.5, -74.5]}
         zoom={4}
         minZoom={4}
         maxZoom={8}

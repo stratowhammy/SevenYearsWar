@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition, useMemo } from "react";
+import React, { useState, useTransition, useMemo, useEffect } from "react";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
@@ -37,6 +37,17 @@ import {
   XCircle,
   Clock,
   RefreshCw,
+  Swords,
+  Anchor,
+  Landmark,
+  Wheat,
+  ShieldAlert,
+  Zap,
+  Crosshair,
+  Users,
+  Flag,
+  ShieldCheck,
+  Filter,
 } from "lucide-react";
 
 const DynamicMapViewer = dynamic(
@@ -105,6 +116,13 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
     [game.nodes, selectedNodeId, activeFaction]
   );
 
+  const adjacentNodes = useMemo(() => {
+    if (!selectedNode?.adjacentNodeIds) return [];
+    return game.nodes.filter((n: any) =>
+      selectedNode.adjacentNodeIds.includes(n.id)
+    );
+  }, [game.nodes, selectedNode]);
+
   // Order submission form state
   const [orderType, setOrderType] = useState<
     | "MOVE"
@@ -125,6 +143,90 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
     "Secure strategic river portage before winter freeze."
   );
   const [combatLogs, setCombatLogs] = useState<string[]>([]);
+  const [feedFilter, setFeedFilter] = useState<
+    "ALL" | "WEATHER" | "NAVAL" | "COMBAT" | "DIPLOMACY"
+  >("ALL");
+
+  const filteredCombatLogs = useMemo(() => {
+    if (feedFilter === "ALL") return combatLogs;
+    if (feedFilter === "WEATHER") {
+      return combatLogs.filter(
+        (l) => l.includes("[Winter Freeze]") || l.includes("[Hurricane]")
+      );
+    }
+    if (feedFilter === "NAVAL") {
+      return combatLogs.filter(
+        (l) =>
+          l.includes("[Naval Blockade]") ||
+          l.includes("[Naval Interception]") ||
+          l.includes("[Amphibious Assault]") ||
+          l.toLowerCase().includes("fleet")
+      );
+    }
+    if (feedFilter === "COMBAT") {
+      return combatLogs.filter(
+        (l) =>
+          l.includes("[Casualties]") ||
+          l.includes("[Field Engagement]") ||
+          l.includes("[Frontier Raid]") ||
+          l.includes("[Covenant Violation]")
+      );
+    }
+    if (feedFilter === "DIPLOMACY") {
+      return combatLogs.filter(
+        (l) =>
+          l.includes("[Treaty]") ||
+          l.includes("[Declaration of War]") ||
+          l.includes("[Assembly]") ||
+          l.includes("[Covenant]")
+      );
+    }
+    return combatLogs;
+  }, [combatLogs, feedFilter]);
+
+  const handleQuickAction = (actionType: typeof orderType) => {
+    if (!selectedNode) return;
+    setOrderType(actionType);
+    setActiveTab("ORDERS");
+    if (actionType === "MOVE" || actionType === "RAID") {
+      const firstAdj = adjacentNodes[0];
+      if (firstAdj) {
+        setTargetNodeId(firstAdj.id);
+        setReasoning(
+          `Advance forces from ${selectedNode.name} to ${firstAdj.name}`
+        );
+      }
+    } else if (actionType === "RECRUIT") {
+      setTargetNodeId(selectedNode.id);
+      setReasoning(`Muster provincial units at ${selectedNode.name}`);
+      setAllocatedTreasury(20);
+    } else if (actionType === "EXTRACT") {
+      setTargetNodeId(selectedNode.id);
+      setReasoning(`Extract colonial yields at ${selectedNode.name}`);
+      setAllocatedTreasury(0);
+    } else if (actionType === "COVENANT_BOUNDARY") {
+      setTargetNodeId(selectedNode.id);
+      setReasoning(
+        `Proclaim boundary covenant guaranteeing ${selectedNode.name}`
+      );
+      setAllocatedTreasury(10);
+    } else if (actionType === "AMPHIBIOUS_ASSAULT") {
+      const seaTarget =
+        adjacentNodes.find((n: any) => n.nodeType === "SEA_ZONE") ||
+        adjacentNodes[0];
+      if (seaTarget) setTargetNodeId(seaTarget.id);
+      setReasoning(
+        `Amphibious naval landing & bombardment against ${selectedNode.name}`
+      );
+      setAllocatedTreasury(25);
+    } else if (actionType === "ASSEMBLY_NEGOTIATION") {
+      setTargetNodeId(selectedNode.id);
+      setReasoning(
+        `Negotiate provincial war supply appropriation with assembly`
+      );
+      setAllocatedTreasury(15);
+    }
+  };
 
   const covenantedNodeIds = useMemo(() => {
     const ids: string[] = [];
@@ -183,6 +285,23 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
       );
     });
   };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isPending) return;
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === "input" || tag === "textarea" || tag === "select") return;
+      if (e.key === "n" || e.key === "N") {
+        e.preventDefault();
+        handleAdvancePhase();
+      } else if (e.key === "r" || e.key === "R") {
+        e.preventDefault();
+        handleExecuteFullTurn();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [game.id, isPending]);
 
   const handleSubmitOrder = (e: React.FormEvent) => {
     e.preventDefault();
@@ -326,9 +445,13 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
               disabled={isPending}
               onClick={handleAdvancePhase}
               data-testid="warroom-advance-phase"
-              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-stone-800 hover:bg-stone-700 text-amber-200 border border-stone-700 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-stone-800 hover:bg-stone-700 text-amber-200 border border-stone-700 transition cursor-pointer shadow-sm"
+              title="Advance to next phase (Shortcut: N)"
             >
               <Play className="w-3.5 h-3.5" /> Next Phase
+              <span className="text-[10px] font-mono text-amber-400/80 bg-stone-950 px-1.5 py-0.2 rounded border border-stone-700">
+                N
+              </span>
             </button>
 
             <button
@@ -336,9 +459,13 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
               disabled={isPending}
               onClick={handleExecuteFullTurn}
               data-testid="warroom-resolve-turn"
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-500 text-stone-950 transition cursor-pointer"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-bold bg-amber-600 hover:bg-amber-500 text-stone-950 transition cursor-pointer shadow-md"
+              title="Resolve entire turn cycle (Shortcut: R)"
             >
               <FastForward className="w-3.5 h-3.5" /> Resolve Full Turn
+              <span className="text-[10px] font-mono text-stone-950 bg-amber-300/90 px-1.5 py-0.2 rounded font-bold">
+                R
+              </span>
             </button>
 
             <Link
@@ -559,47 +686,167 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                   )}
                 </div>
               </div>
+
+              {/* Node Quick-Action Command Strip */}
+              <div className="md:col-span-3 pt-2.5 border-t border-stone-800/80 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-1.5 text-[11px] font-mono text-stone-400">
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  <span className="uppercase tracking-wider font-bold text-amber-200">
+                    Quick Directive:
+                  </span>
+                </div>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => handleQuickAction("MOVE")}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-amber-200 border border-stone-700 text-[11px] font-semibold cursor-pointer transition shadow-sm hover:border-amber-600"
+                    title="Pre-fill movement order to adjacent node"
+                  >
+                    <Swords className="w-3 h-3 text-red-400" /> March Force
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickAction("RECRUIT")}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-amber-200 border border-stone-700 text-[11px] font-semibold cursor-pointer transition shadow-sm hover:border-amber-600"
+                    title="Muster provincial militia or garrison"
+                  >
+                    <Users className="w-3 h-3 text-emerald-400" /> Muster
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickAction("EXTRACT")}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-amber-200 border border-stone-700 text-[11px] font-semibold cursor-pointer transition shadow-sm hover:border-amber-600"
+                    title="Harvest regional commodity revenue"
+                  >
+                    <Wheat className="w-3 h-3 text-amber-400" /> Harvest Yield
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleQuickAction("COVENANT_BOUNDARY")}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-stone-800 hover:bg-stone-700 text-purple-200 border border-purple-800/80 text-[11px] font-semibold cursor-pointer transition shadow-sm hover:border-purple-600"
+                    title="Establish protective covenant line"
+                  >
+                    <ShieldCheck className="w-3 h-3 text-purple-400" /> Covenant
+                  </button>
+                  {(selectedNode.nodeType === "SEA_ZONE" ||
+                    selectedNode.region === "CARIBBEAN" ||
+                    selectedNode.region === "MARITIMES" ||
+                    selectedNode.name.includes("Louisbourg") ||
+                    selectedNode.name.includes("Havana") ||
+                    selectedNode.name.includes("Quebec") ||
+                    selectedNode.name.includes("Boston") ||
+                    selectedNode.name.includes("New York")) && (
+                    <button
+                      type="button"
+                      onClick={() => handleQuickAction("AMPHIBIOUS_ASSAULT")}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-sky-950/80 hover:bg-sky-900 text-sky-200 border border-sky-700 text-[11px] font-semibold cursor-pointer transition shadow-sm hover:border-sky-500"
+                      title="Launch naval landing & bombardment"
+                    >
+                      <Anchor className="w-3 h-3 text-sky-400" /> Amphibious
+                    </button>
+                  )}
+                  {selectedNode.controller?.id !== activeFaction.id && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab("DISPATCHES");
+                        if (selectedNode.controller?.id) {
+                          setDispatchTargetFactionId(selectedNode.controller.id);
+                        }
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-indigo-950/80 hover:bg-indigo-900 text-indigo-200 border border-indigo-700 text-[11px] font-semibold cursor-pointer transition shadow-sm hover:border-indigo-500"
+                      title="Send diplomatic courier to occupying faction"
+                    >
+                      <Send className="w-3 h-3 text-indigo-400" /> Courier
+                    </button>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
           {/* Live Tactical Combat & Weather Attrition Telemetry Feed */}
           {combatLogs.length > 0 && (
             <div
-              className="bg-stone-900/90 border border-amber-800/50 rounded-xl p-3.5 space-y-2 text-xs"
+              className="bg-stone-900/90 border border-amber-800/50 rounded-xl p-3.5 space-y-2.5 text-xs shadow-xl"
               data-testid="tactical-combat-attrition-feed"
             >
-              <div className="flex items-center justify-between">
-                <span className="font-bold uppercase tracking-wider text-amber-300 text-[11px]">
-                  Tactical Resolution &amp; Weather Attrition Telemetry ({combatLogs.length})
-                </span>
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="font-bold uppercase tracking-wider text-amber-300 text-[11px] flex items-center gap-1.5">
+                    <Flame className="w-3.5 h-3.5 text-amber-400" />
+                    Tactical &amp; Environmental Telemetry ({combatLogs.length})
+                  </span>
+                  <div className="flex items-center gap-1 bg-stone-950 px-1.5 py-0.5 rounded border border-stone-800 text-[10px] font-mono">
+                    {(
+                      [
+                        { id: "ALL", label: `ALL (${combatLogs.length})` },
+                        { id: "WEATHER", label: "❄ Weather" },
+                        { id: "NAVAL", label: "⚓ Naval" },
+                        { id: "COMBAT", label: "⚔ Combat" },
+                        { id: "DIPLOMACY", label: "📜 Treaties" },
+                      ] as const
+                    ).map((f) => (
+                      <button
+                        key={f.id}
+                        type="button"
+                        onClick={() => setFeedFilter(f.id)}
+                        className={`px-1.5 py-0.5 rounded transition cursor-pointer ${
+                          feedFilter === f.id
+                            ? "bg-amber-600 text-stone-950 font-bold"
+                            : "text-stone-400 hover:text-stone-200"
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <button
                   type="button"
                   onClick={() => setCombatLogs([])}
-                  className="text-[10px] text-stone-400 hover:text-stone-200 font-mono"
+                  className="text-[10px] text-stone-400 hover:text-stone-200 font-mono underline"
                 >
                   Clear Feed
                 </button>
               </div>
-              <div className="space-y-1 max-h-32 overflow-y-auto font-mono text-[11px]">
-                {combatLogs.map((log, i) => (
-                  <div
-                    key={i}
-                    className={`px-2.5 py-1 rounded border ${
-                      log.includes("[Winter Freeze]") ||
-                      log.includes("[Hurricane]")
-                        ? "bg-cyan-950/60 border-cyan-800 text-cyan-200"
-                        : log.includes("[Naval Blockade]") ||
-                          log.includes("[Naval Interception]")
-                        ? "bg-sky-950/60 border-sky-800 text-sky-200"
-                        : log.includes("[Covenant Violation]") ||
-                          log.includes("[Declaration of War]")
-                        ? "bg-red-950/60 border-red-800 text-red-200"
-                        : "bg-stone-950 border-stone-800 text-stone-200"
-                    }`}
-                  >
-                    {log}
+              <div className="space-y-1.5 max-h-36 overflow-y-auto font-mono text-[11px] pr-1">
+                {filteredCombatLogs.length > 0 ? (
+                  filteredCombatLogs.map((log, i) => (
+                    <div
+                      key={i}
+                      className={`px-2.5 py-1 rounded border flex items-start justify-between gap-2 ${
+                        log.includes("[Winter Freeze]") ||
+                        log.includes("[Hurricane]")
+                          ? "bg-cyan-950/60 border-cyan-800 text-cyan-200"
+                          : log.includes("[Naval Blockade]") ||
+                            log.includes("[Naval Interception]")
+                          ? "bg-sky-950/60 border-sky-800 text-sky-200"
+                          : log.includes("[Covenant Violation]") ||
+                            log.includes("[Declaration of War]")
+                          ? "bg-red-950/60 border-red-800 text-red-200"
+                          : "bg-stone-950 border-stone-800 text-stone-200"
+                      }`}
+                    >
+                      <span>{log}</span>
+                      <span className="text-[9px] uppercase px-1.5 py-0.2 rounded font-bold shrink-0 bg-stone-900 border border-stone-700 text-stone-400">
+                        {log.includes("[Winter Freeze]")
+                          ? "FREEZE"
+                          : log.includes("[Hurricane]")
+                          ? "STORM"
+                          : log.includes("[Naval")
+                          ? "NAVAL"
+                          : log.includes("[Covenant")
+                          ? "COVENANT"
+                          : "DISPATCH"}
+                      </span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="text-stone-500 italic py-1 text-center">
+                    No entries matching filter &quot;{feedFilter}&quot;
                   </div>
-                ))}
+                )}
               </div>
             </div>
           )}
@@ -696,7 +943,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
             )}
 
             {activeRole && (
-              <div className="text-xs bg-stone-950/90 px-3 py-2 rounded border border-stone-800/90 space-y-1.5">
+              <div className="text-xs bg-stone-950/90 px-3 py-2.5 rounded-lg border border-stone-800/90 space-y-2">
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="font-semibold text-amber-200">
@@ -706,9 +953,22 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                       {activeRole.aiPersonaPrompt}
                     </span>
                   </div>
-                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-stone-800 text-stone-200 border border-stone-700">
-                    {activeRole.controller} • {activeRole.botBehavior}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab("ADVISOR");
+                        handleInvokeAI(BotBehavior.ADVISOR);
+                      }}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded bg-indigo-950 hover:bg-indigo-900 border border-indigo-700/80 text-indigo-200 font-mono text-[10px] cursor-pointer transition"
+                      title="Request immediate 150-word AI strategy briefing"
+                    >
+                      <Sparkles className="w-3 h-3 text-indigo-400" /> Consult AI
+                    </button>
+                    <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-stone-800 text-stone-200 border border-stone-700">
+                      {activeRole.controller} • {activeRole.botBehavior}
+                    </span>
+                  </div>
                 </div>
                 {activeRole.strategicObjective && (
                   <div
@@ -762,22 +1022,104 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
           <div className="bg-stone-900/90 border border-stone-800 rounded-xl p-4 flex-1 flex flex-col justify-between">
             {activeTab === "ORDERS" && (
               <div className="space-y-4">
-                <form onSubmit={handleSubmitOrder} className="space-y-3 text-xs">
-                  <div className="font-bold uppercase tracking-wider text-amber-300">
-                    Issue Tactical / Economic Order ({selectedRoleType})
+                <form onSubmit={handleSubmitOrder} className="space-y-3.5 text-xs">
+                  <div className="flex items-center justify-between border-b border-stone-800 pb-2">
+                    <div className="font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
+                      <Shield className="w-4 h-4 text-amber-400" />
+                      Issue Operational Directive ({selectedRoleType})
+                    </div>
+                    <span className="text-[10px] font-mono text-stone-400">
+                      Active: <span className="text-amber-200 font-bold">{orderType}</span>
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-stone-400 mb-1">
-                        Order Type
-                      </label>
+                  {/* Categorized Action Matrix */}
+                  <div className="space-y-2">
+                    <label className="block text-[10px] font-mono uppercase tracking-wider text-stone-400">
+                      Select Order Classification &amp; Operational Objective
+                    </label>
+
+                    {/* Operational Categories Tabs / Grid */}
+                    <div className="space-y-2.5">
+                      {[
+                        {
+                          category: "Military & Naval Operations",
+                          badge: "Field & Fleet",
+                          color: "text-amber-300 border-amber-900/60",
+                          actions: [
+                            { type: "MOVE" as const, label: "March Force", desc: "Advance battalions", icon: Swords },
+                            { type: "RECRUIT" as const, label: "Muster Troops", desc: "Levy provincials", icon: Users },
+                            { type: "AMPHIBIOUS_ASSAULT" as const, label: "Amphibious", desc: "Landing & fleet guns", icon: Anchor },
+                            { type: "RAID" as const, label: "Frontier Raid", desc: "Irregular war party", icon: Crosshair },
+                          ],
+                        },
+                        {
+                          category: "Sovereignty & Treaties",
+                          badge: "Crown & Council",
+                          color: "text-purple-300 border-purple-900/60",
+                          actions: [
+                            { type: "COVENANT_BOUNDARY" as const, label: "Covenant Line", desc: "Easton reservation", icon: ShieldCheck },
+                            { type: "DECLARE_WAR" as const, label: "Declare War", desc: "Open hostilities", icon: ShieldAlert },
+                            { type: "TREATY_CONFERENCE" as const, label: "Peace Congress", desc: "Convene peace talks", icon: Flag },
+                          ],
+                        },
+                        {
+                          category: "Economy & Governance",
+                          badge: "Customs & Bullion",
+                          color: "text-emerald-300 border-emerald-900/60",
+                          actions: [
+                            { type: "EXTRACT" as const, label: "Harvest Yield", desc: "Collect furs & timber", icon: Wheat },
+                            { type: "TRADE" as const, label: "Merchant Convoy", desc: "Dispatch trade mission", icon: Coins },
+                            { type: "SUBSIDIZE" as const, label: "Allied Subsidies", desc: "Transfer war bullion", icon: Award },
+                            { type: "ASSEMBLY_NEGOTIATION" as const, label: "Assembly", desc: "Lobby legislature", icon: Landmark },
+                          ],
+                        },
+                      ].map((cat) => (
+                        <div key={cat.category} className="space-y-1">
+                          <div className="flex items-center justify-between text-[10px] font-mono text-stone-400">
+                            <span className={cat.color.split(" ")[0]}>
+                              {cat.category}
+                            </span>
+                            <span className="text-stone-500">{cat.badge}</span>
+                          </div>
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                            {cat.actions.map((act) => {
+                              const isSelected = orderType === act.type;
+                              const Icon = act.icon;
+                              return (
+                                <button
+                                  key={act.type}
+                                  type="button"
+                                  onClick={() => setOrderType(act.type)}
+                                  className={`p-2 rounded-lg border text-left transition cursor-pointer flex flex-col justify-between ${
+                                    isSelected
+                                      ? "bg-amber-950/80 border-amber-500 ring-1 ring-amber-500/60 text-amber-100 shadow-md"
+                                      : "bg-stone-950 hover:bg-stone-850 border-stone-800 text-stone-300 hover:border-stone-700"
+                                  }`}
+                                >
+                                  <div className="flex items-center justify-between gap-1 mb-1">
+                                    <span className="font-semibold text-[11px] flex items-center gap-1">
+                                      <Icon className={`w-3.5 h-3.5 ${isSelected ? "text-amber-400" : "text-stone-400"}`} />
+                                      {act.label}
+                                    </span>
+                                  </div>
+                                  <span className="text-[10px] text-stone-400 leading-tight">
+                                    {act.desc}
+                                  </span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Compact Synchronized Select for programmatic / testing compatibility */}
+                    <div className="pt-1">
                       <select
                         value={orderType}
-                        onChange={(e) =>
-                          setOrderType(e.target.value as any)
-                        }
-                        className="w-full px-2.5 py-2 rounded bg-stone-950 border border-stone-700 text-stone-100"
+                        onChange={(e) => setOrderType(e.target.value as any)}
+                        className="w-full px-2.5 py-1.5 rounded bg-stone-950 border border-stone-800 text-[11px] text-stone-300"
                       >
                         <option value="MOVE">MOVE (Advance Formation)</option>
                         <option value="RECRUIT">RECRUIT (Muster Troops)</option>
@@ -802,56 +1144,146 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                         </option>
                       </select>
                     </div>
-                    <div>
-                      <label className="block text-stone-400 mb-1">
-                        Allocated Treasury (£)
-                      </label>
-                      <input
-                        type="number"
-                        min={0}
-                        max={activeFaction?.treasury ?? 200}
-                        value={allocatedTreasury}
-                        onChange={(e) =>
-                          setAllocatedTreasury(Number(e.target.value))
-                        }
-                        className="w-full px-2.5 py-2 rounded bg-stone-950 border border-stone-700 text-stone-100"
-                      />
-                    </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  {/* Treasury Allocation & Source Node */}
+                  <div className="grid grid-cols-2 gap-3 pt-1">
                     <div>
-                      <label className="block text-stone-400 mb-1">
-                        Source Node (Click Map to Select)
+                      <label className="block text-stone-400 mb-1 text-[11px]">
+                        Allocated Treasury (£)
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="number"
+                          min={0}
+                          max={activeFaction?.treasury ?? 200}
+                          value={allocatedTreasury}
+                          onChange={(e) =>
+                            setAllocatedTreasury(Number(e.target.value))
+                          }
+                          className="w-full px-2.5 py-2 rounded bg-stone-950 border border-stone-700 text-stone-100 font-mono"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setAllocatedTreasury((prev) => Math.max(0, prev - 5))}
+                          className="px-2 py-2 rounded bg-stone-850 hover:bg-stone-800 border border-stone-700 text-stone-300 font-mono cursor-pointer"
+                        >
+                          -5
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setAllocatedTreasury((prev) =>
+                              Math.min(activeFaction?.treasury ?? 200, prev + 5)
+                            )
+                          }
+                          className="px-2 py-2 rounded bg-stone-850 hover:bg-stone-800 border border-stone-700 text-stone-300 font-mono cursor-pointer"
+                        >
+                          +5
+                        </button>
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-stone-400 mb-1 text-[11px]">
+                        Source Theater Node (Staging Base)
                       </label>
                       <input
                         type="text"
                         readOnly
                         value={selectedNode?.name ?? ""}
-                        className="w-full px-2.5 py-2 rounded bg-stone-950/60 border border-stone-800 text-amber-300"
+                        className="w-full px-2.5 py-2 rounded bg-stone-950/80 border border-stone-800 text-amber-300 font-semibold"
                       />
-                    </div>
-                    <div>
-                      <label className="block text-stone-400 mb-1">
-                        Target Corridor Node
-                      </label>
-                      <select
-                        value={targetNodeId}
-                        onChange={(e) => setTargetNodeId(e.target.value)}
-                        className="w-full px-2.5 py-2 rounded bg-stone-950 border border-stone-700 text-stone-100"
-                      >
-                        <option value="">Adjacent Default</option>
-                        {game.nodes.map((n: any) => (
-                          <option key={n.id} value={n.id}>
-                            {n.name} ({n.region})
-                          </option>
-                        ))}
-                      </select>
                     </div>
                   </div>
 
+                  {/* Target Corridor Node with Adjacent Quick-Pills */}
+                  <div className="space-y-1.5 pt-1">
+                    <label className="block text-stone-400 text-[11px]">
+                      Target Corridor Node (Operational Destination)
+                    </label>
+
+                    {adjacentNodes.length > 0 && (
+                      <div className="space-y-1 bg-stone-950/60 p-2 rounded-lg border border-stone-850">
+                        <div className="text-[10px] font-mono uppercase text-stone-400 flex items-center justify-between">
+                          <span>Connected Adjacent Corridors:</span>
+                          <span className="text-stone-500">1-Click Quick Select</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {adjacentNodes.map((adj: any) => {
+                            const isFrozen =
+                              game.currentSeason === "Winter" &&
+                              ((selectedNode.name.includes("Quebec") &&
+                                adj.name.includes("Montreal")) ||
+                                (selectedNode.name.includes("Montreal") &&
+                                  adj.name.includes("Quebec")) ||
+                                adj.name.includes("Champlain") ||
+                                adj.name.includes("Frontenac"));
+                            const isHurricane =
+                              game.currentSeason === "Autumn" &&
+                              (adj.nodeType === "SEA_ZONE" ||
+                                adj.region === "CARIBBEAN");
+                            const isTarget = targetNodeId === adj.id;
+
+                            return (
+                              <button
+                                key={adj.id}
+                                type="button"
+                                onClick={() => setTargetNodeId(adj.id)}
+                                className={`px-2 py-1 rounded text-[11px] font-mono border transition cursor-pointer flex items-center gap-1 ${
+                                  isTarget
+                                    ? "bg-amber-600 text-stone-950 font-bold border-amber-400 shadow-sm"
+                                    : "bg-stone-950 hover:bg-stone-850 text-stone-200 border-stone-750"
+                                }`}
+                              >
+                                <span>{adj.name}</span>
+                                {isFrozen && (
+                                  <span title="Winter Freeze (2.5x Cost)">❄</span>
+                                )}
+                                {isHurricane && (
+                                  <span title="Hurricane Risk (1.75x Cost)">🌀</span>
+                                )}
+                                {adj.nodeType === "SEA_ZONE" && (
+                                  <span title="Naval Sea Lane">⚓</span>
+                                )}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <select
+                      value={targetNodeId}
+                      onChange={(e) => setTargetNodeId(e.target.value)}
+                      className="w-full px-2.5 py-2 rounded bg-stone-950 border border-stone-700 text-stone-100 text-xs"
+                    >
+                      <option value="">Adjacent Default Corridor</option>
+                      {adjacentNodes.length > 0 && (
+                        <optgroup label="Directly Connected Corridors">
+                          {adjacentNodes.map((n: any) => (
+                            <option key={n.id} value={n.id}>
+                              ★ {n.name} ({n.region}) [Adjacent]
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      <optgroup label="Other Theater Nodes">
+                        {game.nodes
+                          .filter(
+                            (n: any) =>
+                              !selectedNode?.adjacentNodeIds?.includes(n.id)
+                          )
+                          .map((n: any) => (
+                            <option key={n.id} value={n.id}>
+                              {n.name} ({n.region})
+                            </option>
+                          ))}
+                      </optgroup>
+                    </select>
+                  </div>
+
                   <div>
-                    <label className="block text-stone-400 mb-1">
+                    <label className="block text-stone-400 mb-1 text-[11px]">
                       Strategic Reasoning (&le;100 chars)
                     </label>
                     <input
@@ -859,25 +1291,31 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                       maxLength={100}
                       value={reasoning}
                       onChange={(e) => setReasoning(e.target.value)}
-                      className="w-full px-2.5 py-2 rounded bg-stone-950 border border-stone-700 text-stone-100"
+                      className="w-full px-2.5 py-2 rounded bg-stone-950 border border-stone-700 text-stone-100 text-xs"
                     />
                   </div>
 
                   <button
                     type="submit"
                     disabled={isPending}
-                    className="w-full py-2.5 rounded-lg font-bold bg-amber-600 hover:bg-amber-500 text-stone-950 transition cursor-pointer"
+                    className="w-full py-2.5 rounded-lg font-bold bg-amber-600 hover:bg-amber-500 text-stone-950 transition cursor-pointer shadow-lg hover:shadow-amber-900/30 flex items-center justify-center gap-2"
                   >
+                    <Send className="w-3.5 h-3.5" />
                     Commit Order to Turn {game.turnNumber} Queue
                   </button>
                 </form>
 
                 {/* Queued Orders List */}
                 <div className="border-t border-stone-800 pt-3">
-                  <div className="text-[11px] font-mono uppercase text-stone-400 mb-2">
-                    Turn {game.turnNumber} Queued Orders ({game.orders?.length ?? 0})
+                  <div className="text-[11px] font-mono uppercase text-stone-400 mb-2 flex items-center justify-between">
+                    <span>
+                      Turn {game.turnNumber} Queued Orders ({game.orders?.length ?? 0})
+                    </span>
+                    <span className="text-stone-500 text-[10px]">
+                      Phase: {game.currentPhase}
+                    </span>
                   </div>
-                  <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                  <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1 font-mono text-[11px]">
                     {game.orders?.slice(0, 10).map((o: any) => (
                       <div
                         key={o.id}
