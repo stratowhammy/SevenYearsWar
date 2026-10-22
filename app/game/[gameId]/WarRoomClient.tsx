@@ -48,7 +48,9 @@ import {
   Flag,
   ShieldCheck,
   Filter,
+  HelpCircle,
 } from "lucide-react";
+import DashboardTourGuide from "@/components/dashboard/DashboardTourGuide";
 
 const DynamicMapViewer = dynamic(
   () => import("@/components/map/MapViewer"),
@@ -78,6 +80,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
   const [isPending, startTransition] = useTransition();
   const [toast, setToast] = useState<string | null>(null);
   const [aiResponse, setAiResponse] = useState<any | null>(null);
+  const [isTourOpen, setIsTourOpen] = useState(false);
 
   const {
     selectedNodeId,
@@ -297,6 +300,9 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
       } else if (e.key === "r" || e.key === "R") {
         e.preventDefault();
         handleExecuteFullTurn();
+      } else if (e.key === "?" || e.key === "h" || e.key === "H") {
+        e.preventDefault();
+        setIsTourOpen((prev) => !prev);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
@@ -393,7 +399,10 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
   return (
     <div className="min-h-screen bg-stone-950 text-stone-100 flex flex-col">
       {/* Top Imperial Command Header */}
-      <header className="border-b border-stone-800 bg-stone-900/95 px-6 py-3.5">
+      <header
+        id="tour-header-stepper"
+        className="border-b border-stone-800 bg-stone-900/95 px-6 py-3.5"
+      >
         <div className="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             <div className="p-2 rounded-lg bg-amber-950/80 border border-amber-700/60 text-amber-300">
@@ -468,6 +477,20 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
               </span>
             </button>
 
+            <button
+              type="button"
+              onClick={() => setIsTourOpen(true)}
+              data-testid="btn-dashboard-tour"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-amber-950/80 hover:bg-amber-900 text-amber-200 border border-amber-600/70 transition cursor-pointer shadow-sm hover:border-amber-400"
+              title="Interactive Dashboard Guide & Animated Overlay (Shortcut: ?)"
+            >
+              <HelpCircle className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+              <span>Dashboard Guide</span>
+              <span className="text-[10px] font-mono text-amber-300 bg-stone-950 px-1.5 py-0.2 rounded border border-amber-700/60">
+                ?
+              </span>
+            </button>
+
             <Link
               href={`/admin/${game.id}/roles`}
               data-testid="link-admin-roles"
@@ -480,7 +503,10 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
       </header>
 
       {/* Off-Map Theater Abstractor Telemetry Ribbon */}
-      <div className="bg-stone-900/60 border-b border-stone-800/80 px-6 py-2">
+      <div
+        id="tour-offmap-ribbon"
+        className="bg-stone-900/60 border-b border-stone-800/80 px-6 py-2"
+      >
         <div className="max-w-[1600px] mx-auto grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
           <div className="flex items-start gap-2 bg-stone-950/70 px-3 py-1.5 rounded border border-stone-800">
             <Globe className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
@@ -567,7 +593,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
       {/* Main Split Workspace: Map Canvas (Left 7 cols) + Role Command Desk (Right 5 cols) */}
       <main className="max-w-[1600px] w-full mx-auto flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-6">
         {/* Left Column: Americas & Caribbean MapViewer + Node Inspector */}
-        <div className="lg:col-span-7 flex flex-col gap-4">
+        <div id="tour-map-canvas" className="lg:col-span-7 flex flex-col gap-4">
           <div className="flex flex-wrap items-center justify-between gap-2 bg-stone-900/80 px-4 py-2.5 rounded-xl border border-stone-800">
             <div className="flex items-center gap-2 text-xs">
               <span className="text-stone-400 font-medium">Map Layers:</span>
@@ -617,7 +643,10 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
 
           {/* Selected Node Tactical Dossier */}
           {selectedNode && (
-            <div className="bg-stone-900/80 border border-stone-800 rounded-xl p-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs">
+            <div
+              id="tour-node-dossier"
+              className="bg-stone-900/80 border border-stone-800 rounded-xl p-4 grid grid-cols-1 md:grid-cols-3 gap-4 text-xs"
+            >
               <div>
                 <span className="text-[10px] font-mono uppercase text-stone-400">
                   Selected Theater Node
@@ -768,6 +797,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
           {/* Live Tactical Combat & Weather Attrition Telemetry Feed */}
           {combatLogs.length > 0 && (
             <div
+              id="tour-telemetry-feed"
               className="bg-stone-900/90 border border-amber-800/50 rounded-xl p-3.5 space-y-2.5 text-xs shadow-xl"
               data-testid="tactical-combat-attrition-feed"
             >
@@ -855,7 +885,10 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
         {/* Right Column: Faction & Role Command Console */}
         <div className="lg:col-span-5 flex flex-col gap-4">
           {/* Active Faction & Role Selector Card */}
-          <div className="bg-stone-900/90 border border-stone-800 rounded-xl p-4 space-y-3">
+          <div
+            id="tour-faction-selector"
+            className="bg-stone-900/90 border border-stone-800 rounded-xl p-4 space-y-3"
+          >
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="block text-[10px] font-mono uppercase tracking-wider text-stone-400 mb-1">
@@ -902,7 +935,10 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
 
             {/* Faction Metrics Bar */}
             {activeFaction && (
-              <div className="grid grid-cols-5 gap-2 pt-1 text-xs font-mono">
+              <div
+                id="tour-faction-ledger"
+                className="grid grid-cols-5 gap-2 pt-1 text-xs font-mono"
+              >
                 <div className="bg-stone-950 p-2 rounded border border-stone-800">
                   <div className="text-[10px] text-stone-400 flex items-center gap-1">
                     <Coins className="w-3 h-3 text-amber-400" /> Treasury
@@ -943,7 +979,10 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
             )}
 
             {activeRole && (
-              <div className="text-xs bg-stone-950/90 px-3 py-2.5 rounded-lg border border-stone-800/90 space-y-2">
+              <div
+                id="tour-role-doctrine"
+                className="text-xs bg-stone-950/90 px-3 py-2.5 rounded-lg border border-stone-800/90 space-y-2"
+              >
                 <div className="flex items-center justify-between">
                   <div>
                     <span className="font-semibold text-amber-200">
@@ -991,7 +1030,10 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
           </div>
 
           {/* Navigation Tabs */}
-          <div className="grid grid-cols-4 gap-1 bg-stone-900 p-1 rounded-xl border border-stone-800 text-xs font-semibold">
+          <div
+            id="tour-command-tabs"
+            className="grid grid-cols-4 gap-1 bg-stone-900 p-1 rounded-xl border border-stone-800 text-xs font-semibold"
+          >
             {(
               [
                 { id: "ORDERS", label: "Orders", icon: Shield },
@@ -1021,7 +1063,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
           {/* Tab Content Area */}
           <div className="bg-stone-900/90 border border-stone-800 rounded-xl p-4 flex-1 flex flex-col justify-between">
             {activeTab === "ORDERS" && (
-              <div className="space-y-4">
+              <div id="tour-orders-matrix" className="space-y-4">
                 <form onSubmit={handleSubmitOrder} className="space-y-3.5 text-xs">
                   <div className="flex items-center justify-between border-b border-stone-800 pb-2">
                     <div className="font-bold uppercase tracking-wider text-amber-300 flex items-center gap-1.5">
@@ -1346,7 +1388,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
             )}
 
             {activeTab === "ADVISOR" && (
-              <div className="space-y-4 text-xs">
+              <div id="tour-ai-advisor" className="space-y-4 text-xs">
                 <div className="space-y-1">
                   <div className="font-bold uppercase tracking-wider text-amber-300">
                     Token-Bounded DeepSeek AI Controller (O(1) ~1,500 Token Budget)
@@ -1422,7 +1464,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
             )}
 
             {activeTab === "DISPATCHES" && (
-              <div className="space-y-4 text-xs">
+              <div id="tour-courier-system" className="space-y-4 text-xs">
                 <form onSubmit={handleSendDispatch} className="space-y-3">
                   <div className="font-bold uppercase tracking-wider text-amber-300">
                     Asynchronous Diplomatic Courier Service
@@ -1537,7 +1579,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
             )}
 
             {activeTab === "CHRONICLE" && (
-              <div className="space-y-3 text-xs">
+              <div id="tour-chronicle-sql" className="space-y-3 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="font-bold uppercase tracking-wider text-amber-300">
                     Deterministic SQL Event Ledger
@@ -1599,6 +1641,14 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
           </div>
         </div>
       </main>
+
+      {/* Interactive Guided Tour with Overlay Spotlight Animations */}
+      <DashboardTourGuide
+        isOpen={isTourOpen}
+        onClose={() => setIsTourOpen(false)}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+      />
     </div>
   );
 }
