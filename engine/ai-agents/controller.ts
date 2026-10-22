@@ -38,13 +38,55 @@ function synthesizeDeterministicAutonomousOrders(
   const nodes = contextPayload.controlledNodes;
   const units = contextPayload.activeUnits;
   const treasury = contextPayload.factionState.treasury ?? 100;
+  const debt = contextPayload.factionState.debt ?? 0;
+  const unrest = contextPayload.factionState.unrest ?? 0;
   const primaryNode = nodes[0];
   const primaryUnit = units[0];
+  const activeObjective = (contextPayload.strategicObjective ?? null) as {
+    objectiveNodeId?: string;
+    objectiveType?: string;
+    status?: string;
+  } | null;
+
+  const isIndigenous =
+    contextPayload.factionType?.includes("NATIONS") ||
+    contextPayload.factionType === "HAUDENOSAUNEE" ||
+    contextPayload.factionType === "WESTERN_CONFEDERACY";
 
   const actionOrders: AutonomousOrderPayload["actionOrders"] = [];
 
   if (roleType === RoleType.EXECUTIVE) {
-    if (primaryNode) {
+    if (debt >= 300 && unrest >= 80 && primaryNode) {
+      actionOrders.push({
+        orderType: "TREATY_CONFERENCE",
+        sourceNodeId: primaryNode.id,
+        allocatedTreasury: 0,
+        reasoning: `Convene plenipotentiaries to negotiate peace and sovereign debt relief`.slice(
+          0,
+          100
+        ),
+      });
+    } else if (isIndigenous && primaryNode) {
+      actionOrders.push({
+        orderType: "COVENANT_BOUNDARY",
+        sourceNodeId: primaryNode.id,
+        allocatedTreasury: 0,
+        reasoning: `Proclaim sacred treaty covenant boundary at ${primaryNode.name}`.slice(
+          0,
+          100
+        ),
+      });
+    } else if (!isIndigenous && unrest >= 45 && primaryNode) {
+      actionOrders.push({
+        orderType: "ASSEMBLY_NEGOTIATION",
+        sourceNodeId: primaryNode.id,
+        allocatedTreasury: Math.min(20, Math.floor(treasury * 0.2)),
+        reasoning: `Negotiate provincial assembly war appropriations and redress grievances at ${primaryNode.name}`.slice(
+          0,
+          100
+        ),
+      });
+    } else if (primaryNode) {
       actionOrders.push({
         orderType: "SUBSIDIZE",
         sourceNodeId: primaryNode.id,
@@ -68,26 +110,35 @@ function synthesizeDeterministicAutonomousOrders(
       });
     }
     return {
-      orders: AutonomousOrderSchema.parse({ actionOrders }),
-      reasoningScratchpad: `[deepseek-v4-pro Thinking Trace] Evaluated ${contextPayload.factionType} grand strategy across ${nodes.length} nodes and ${contextPayload.recentActiveEvents.length} active events. Prioritizing fiscal stability (${treasury} £ treasury) and strategic alliance subsidies.`,
+      orders: AutonomousOrderSchema.parse({ actionOrders: actionOrders.slice(0, 3) }),
+      reasoningScratchpad: `[deepseek-v4-pro Thinking Trace] Evaluated ${contextPayload.factionType} grand strategy across ${nodes.length} nodes and ${contextPayload.recentActiveEvents.length} active events. Prioritizing fiscal stability (${treasury} £ treasury, ${debt} £ debt) and multi-turn campaign alignment.`,
     };
   }
 
   if (roleType === RoleType.MILITARY) {
     if (primaryUnit && primaryNode) {
-      const targetAdj = primaryNode.adjacentNodeIds[0] ?? primaryUnit.nodeId;
+      const preferredTarget =
+        activeObjective?.status === "IN_PROGRESS" &&
+        activeObjective.objectiveNodeId &&
+        primaryUnit.adjacentNodeIds.includes(activeObjective.objectiveNodeId)
+          ? activeObjective.objectiveNodeId
+          : primaryNode.adjacentNodeIds[0] ?? primaryUnit.nodeId;
+
+      const hasNavalFleet = units.some(
+        (u) => u.type === "SHIP_OF_THE_LINE" || u.type === "MERCHANTMAN"
+      );
+
       actionOrders.push({
-        orderType:
-          contextPayload.factionType?.includes("NATIONS") ||
-          contextPayload.factionType === "HAUDENOSAUNEE" ||
-          contextPayload.factionType === "WESTERN_CONFEDERACY"
-            ? "RAID"
-            : "MOVE",
+        orderType: isIndigenous
+          ? "RAID"
+          : hasNavalFleet && primaryUnit.type === "SHIP_OF_THE_LINE"
+          ? "AMPHIBIOUS_ASSAULT"
+          : "MOVE",
         sourceNodeId: primaryUnit.nodeId,
-        targetNodeId: targetAdj,
+        targetNodeId: preferredTarget,
         unitIds: [primaryUnit.id],
         allocatedTreasury: Math.min(15, Math.floor(treasury * 0.1)),
-        reasoning: `Advance ${primaryUnit.type} from ${primaryUnit.location} along frontier corridor`.slice(
+        reasoning: `Advance ${primaryUnit.type} from ${primaryUnit.location} toward operational objective`.slice(
           0,
           100
         ),
@@ -105,7 +156,7 @@ function synthesizeDeterministicAutonomousOrders(
       });
     }
     return {
-      orders: AutonomousOrderSchema.parse({ actionOrders }),
+      orders: AutonomousOrderSchema.parse({ actionOrders: actionOrders.slice(0, 3) }),
     };
   }
 
@@ -268,6 +319,42 @@ export async function invokeRoleAIController(params: {
     const game = await prisma.game.findUniqueOrThrow({
       where: { id: gameId },
     });
+
+    // Persist or refresh multi-turn strategicObjective in FactionRole memory
+    const existingObj = (contextPayload.strategicObjective ?? null) as {
+      objectiveNodeId?: string;
+      status?: string;
+      targetDeadlineTurn?: number;
+    } | null;
+
+    if (
+      !existingObj ||
+      existingObj.status === "ACCOMPLISHED" ||
+      (existingObj.targetDeadlineTurn &&
+        existingObj.targetDeadlineTurn < game.turnNumber)
+    ) {
+      const firstOrderTarget =
+        parsedOrders.actionOrders[0]?.targetNodeId ??
+        parsedOrders.actionOrders[0]?.sourceNodeId ??
+        contextPayload.controlledNodes[0]?.adjacentNodeIds[0] ??
+        contextPayload.controlledNodes[0]?.id;
+
+      if (firstOrderTarget) {
+        await prisma.factionRole.updateMany({
+          where: { factionId, roleType },
+          data: {
+            strategicObjective: {
+              objectiveNodeId: firstOrderTarget,
+              objectiveType:
+                roleType === RoleType.MILITARY ? "CAPTURE" : "CONSOLIDATE",
+              targetDeadlineTurn: game.turnNumber + 4,
+              status: "IN_PROGRESS",
+              campaignName: `${contextPayload.factionType} ${roleType} Operational Directive`,
+            },
+          },
+        });
+      }
+    }
 
     for (const actionOrder of parsedOrders.actionOrders) {
       const saved = await prisma.order.create({

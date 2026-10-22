@@ -55,6 +55,7 @@ export interface MapViewerProps {
   onSelectNode?: (nodeId: string) => void;
   showSeaPolygons?: boolean;
   showSeasonalEdges?: boolean;
+  covenantedNodeIds?: string[];
 }
 
 function createHistoricalMarkerIcon(
@@ -62,7 +63,8 @@ function createHistoricalMarkerIcon(
   color: string,
   isSelected: boolean,
   totalStrength: number,
-  nodeName: string
+  nodeName: string,
+  isCovenanted: boolean = false
 ) {
   let glyphSvg = "";
   if (category === "FORT") {
@@ -82,6 +84,10 @@ function createHistoricalMarkerIcon(
     glyphSvg = `<circle cx="14" cy="13" r="9" fill="${color}" fill-opacity="0.85" stroke="#38bdf8" stroke-width="2"/>`;
   }
 
+  const covenantHalo = isCovenanted
+    ? `<circle cx="14" cy="13" r="12.5" fill="none" stroke="#f59e0b" stroke-width="1.6" stroke-dasharray="3,2"/>`
+    : "";
+
   const ringStyle = isSelected
     ? "filter: drop-shadow(0 0 8px #f59e0b); transform: scale(1.18);"
     : "filter: drop-shadow(0 2px 4px rgba(0,0,0,0.85));";
@@ -95,6 +101,7 @@ function createHistoricalMarkerIcon(
     <div style="position:relative;display:flex;flex-direction:column;align-items:center;${ringStyle}">
       <div style="position:relative;width:28px;height:26px;">
         <svg width="28" height="26" viewBox="0 0 28 26" xmlns="http://www.w3.org/2000/svg">
+          ${covenantHalo}
           ${glyphSvg}
         </svg>
         ${strengthBadge}
@@ -121,7 +128,12 @@ export default function MapViewer({
   onSelectNode,
   showSeaPolygons = true,
   showSeasonalEdges = true,
+  covenantedNodeIds = [],
 }: MapViewerProps) {
+  const covenantedSet = useMemo(
+    () => new Set(covenantedNodeIds),
+    [covenantedNodeIds]
+  );
   const edges = useMemo(
     () => buildGraphEdges(nodes, season),
     [nodes, season]
@@ -155,7 +167,7 @@ export default function MapViewer({
       `}</style>
 
       {/* Top-Left Compass & Bounds Cartouche */}
-      <div className="absolute top-3 left-12 z-[500] pointer-events-none bg-stone-950/90 border border-amber-800/60 rounded-lg px-3.5 py-2 text-xs shadow-lg backdrop-blur-sm">
+      <div className="absolute top-3 left-12 z-[500] pointer-events-none bg-stone-950/90 border border-amber-800/60 rounded-lg px-3.5 py-2 text-xs shadow-lg backdrop-blur-sm space-y-0.5">
         <div className="font-serif font-bold text-amber-200 tracking-wide">
           North America &amp; Caribbean Strategic Chart ({season} {year})
         </div>
@@ -163,6 +175,16 @@ export default function MapViewer({
           Bounds: 10°N–55°N, 55°W–100°W • {nodes.length} Theater Nodes •{" "}
           {edges.length} Corridors
         </div>
+        {season === "Winter" && (
+          <div className="text-[10px] font-mono text-cyan-300 font-bold">
+            ❄ Winter Freeze Active: St. Lawrence &amp; Ohio Corridors (-15% March Attrition)
+          </div>
+        )}
+        {season === "Autumn" && (
+          <div className="text-[10px] font-mono text-orange-300 font-bold">
+            🌀 Hurricane Season Active: Caribbean Sea Lanes (-12% Fleet Attrition)
+          </div>
+        )}
       </div>
 
       {/* Bottom-Left Map Legend */}
@@ -185,6 +207,10 @@ export default function MapViewer({
         <div className="flex items-center gap-2">
           <span className="inline-block w-3 h-3 rounded-sm bg-sky-500/30 border border-sky-400" />
           <span>Navigable Sea Zone Polygon</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="inline-block w-3 h-3 rounded-full border border-dashed border-amber-400" />
+          <span>Indigenous Covenant Boundary (Easton / Proclamation)</span>
         </div>
       </div>
 
@@ -298,13 +324,15 @@ export default function MapViewer({
             0
           );
           const isSelected = selectedNodeId === node.id;
+          const isCovenanted = covenantedSet.has(node.id);
 
           const icon = createHistoricalMarkerIcon(
             category,
             color,
             isSelected,
             totalStrength,
-            node.name
+            node.name,
+            isCovenanted
           );
 
           return (
@@ -325,6 +353,11 @@ export default function MapViewer({
                     Controller: {node.controller?.type ?? "Unclaimed"} • Region:{" "}
                     {node.region}
                   </div>
+                  {isCovenanted && (
+                    <div className="text-amber-600 font-semibold">
+                      Protected by Easton / Council Covenant Boundary
+                    </div>
+                  )}
                   {node.resourceType && (
                     <div>
                       Resource: {node.resourceType} (+{node.resourceYield} £/turn)

@@ -25,7 +25,18 @@ export async function submitPlayerOrderAction(params: {
   gameId: string;
   factionId: string;
   submittedByRole: RoleType;
-  orderType: "MOVE" | "RECRUIT" | "EXTRACT" | "TRADE" | "SUBSIDIZE" | "RAID";
+  orderType:
+    | "MOVE"
+    | "RECRUIT"
+    | "EXTRACT"
+    | "TRADE"
+    | "SUBSIDIZE"
+    | "RAID"
+    | "AMPHIBIOUS_ASSAULT"
+    | "DECLARE_WAR"
+    | "ASSEMBLY_NEGOTIATION"
+    | "COVENANT_BOUNDARY"
+    | "TREATY_CONFERENCE";
   sourceNodeId: string;
   targetNodeId?: string;
   unitIds?: string[];

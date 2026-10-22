@@ -107,13 +107,34 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
 
   // Order submission form state
   const [orderType, setOrderType] = useState<
-    "MOVE" | "RECRUIT" | "EXTRACT" | "TRADE" | "SUBSIDIZE" | "RAID"
+    | "MOVE"
+    | "RECRUIT"
+    | "EXTRACT"
+    | "TRADE"
+    | "SUBSIDIZE"
+    | "RAID"
+    | "AMPHIBIOUS_ASSAULT"
+    | "DECLARE_WAR"
+    | "ASSEMBLY_NEGOTIATION"
+    | "COVENANT_BOUNDARY"
+    | "TREATY_CONFERENCE"
   >("MOVE");
   const [targetNodeId, setTargetNodeId] = useState<string>("");
   const [allocatedTreasury, setAllocatedTreasury] = useState<number>(15);
   const [reasoning, setReasoning] = useState<string>(
     "Secure strategic river portage before winter freeze."
   );
+  const [combatLogs, setCombatLogs] = useState<string[]>([]);
+
+  const covenantedNodeIds = useMemo(() => {
+    const ids: string[] = [];
+    for (const f of game.factions ?? []) {
+      if (Array.isArray(f.covenantBoundaries)) {
+        ids.push(...f.covenantBoundaries);
+      }
+    }
+    return Array.from(new Set(ids));
+  }, [game.factions]);
 
   // Courier dispatch form state
   const [dispatchTargetFactionId, setDispatchTargetFactionId] =
@@ -134,6 +155,9 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
   const handleAdvancePhase = () => {
     startTransition(async () => {
       const res: any = await advanceSinglePhaseAction(game.id);
+      if (Array.isArray(res?.combatLogs) && res.combatLogs.length > 0) {
+        setCombatLogs(res.combatLogs);
+      }
       await refreshPageData();
       setToast(
         `Completed Phase ${res.phaseExecuted} -> Now in ${res.nextPhase}.`
@@ -144,6 +168,15 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
   const handleExecuteFullTurn = () => {
     startTransition(async () => {
       const res: any = await executeFullTurnCycleAction(game.id);
+      const resolutionStep = res?.phaseResults?.find(
+        (p: any) => p.phaseExecuted === "RESOLUTION"
+      );
+      if (
+        Array.isArray(resolutionStep?.combatLogs) &&
+        resolutionStep.combatLogs.length > 0
+      ) {
+        setCombatLogs(resolutionStep.combatLogs);
+      }
       await refreshPageData();
       setToast(
         `Resolved Turn ${res.completedTurn}! Campaign advanced to Turn ${res.newTurn} (${res.season} ${res.year}).`
@@ -363,6 +396,29 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
         </div>
       </div>
 
+      {game.isPeaceTreatyConcluded && (
+        <div
+          className="max-w-[1600px] w-full mx-auto px-6 pt-3"
+          data-testid="treaty-of-paris-banner"
+        >
+          <div className="px-4 py-2.5 rounded-lg bg-emerald-950/90 border border-emerald-600/80 text-emerald-100 text-xs flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span className="font-bold">
+                1763 Treaty of Paris Concluded:
+              </span>
+              <span>
+                {game.treatyTerms?.summary ??
+                  "Imperial peace ratified; 35% sovereign debt relief applied."}
+              </span>
+            </div>
+            <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-900/80 text-emerald-200">
+              PEACE RATIFIED
+            </span>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div className="max-w-[1600px] w-full mx-auto px-6 pt-3">
           <div className="flex items-center justify-between px-4 py-2 rounded-lg bg-amber-950/80 border border-amber-700 text-amber-200 text-xs">
@@ -428,6 +484,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
               onSelectNode={(id) => setSelectedNodeId(id)}
               showSeaPolygons={showSeaPolygons}
               showSeasonalEdges={showSeasonalEdges}
+              covenantedNodeIds={covenantedNodeIds}
             />
           </div>
 
@@ -452,6 +509,11 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     {Math.abs(selectedNode.lng).toFixed(2)}°W
                   </span>
                 </p>
+                {covenantedNodeIds.includes(selectedNode.id) && (
+                  <span className="inline-block mt-1.5 px-2 py-0.5 rounded bg-amber-950/90 border border-amber-700/80 text-amber-300 font-mono text-[10px]">
+                    Protected by Easton / Council Covenant
+                  </span>
+                )}
               </div>
 
               <div>
@@ -496,6 +558,48 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {/* Live Tactical Combat & Weather Attrition Telemetry Feed */}
+          {combatLogs.length > 0 && (
+            <div
+              className="bg-stone-900/90 border border-amber-800/50 rounded-xl p-3.5 space-y-2 text-xs"
+              data-testid="tactical-combat-attrition-feed"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold uppercase tracking-wider text-amber-300 text-[11px]">
+                  Tactical Resolution &amp; Weather Attrition Telemetry ({combatLogs.length})
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setCombatLogs([])}
+                  className="text-[10px] text-stone-400 hover:text-stone-200 font-mono"
+                >
+                  Clear Feed
+                </button>
+              </div>
+              <div className="space-y-1 max-h-32 overflow-y-auto font-mono text-[11px]">
+                {combatLogs.map((log, i) => (
+                  <div
+                    key={i}
+                    className={`px-2.5 py-1 rounded border ${
+                      log.includes("[Winter Freeze]") ||
+                      log.includes("[Hurricane]")
+                        ? "bg-cyan-950/60 border-cyan-800 text-cyan-200"
+                        : log.includes("[Naval Blockade]") ||
+                          log.includes("[Naval Interception]")
+                        ? "bg-sky-950/60 border-sky-800 text-sky-200"
+                        : log.includes("[Covenant Violation]") ||
+                          log.includes("[Declaration of War]")
+                        ? "bg-red-950/60 border-red-800 text-red-200"
+                        : "bg-stone-950 border-stone-800 text-stone-200"
+                    }`}
+                  >
+                    {log}
+                  </div>
+                ))}
               </div>
             </div>
           )}
@@ -551,7 +655,7 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
 
             {/* Faction Metrics Bar */}
             {activeFaction && (
-              <div className="grid grid-cols-4 gap-2 pt-1 text-xs font-mono">
+              <div className="grid grid-cols-5 gap-2 pt-1 text-xs font-mono">
                 <div className="bg-stone-950 p-2 rounded border border-stone-800">
                   <div className="text-[10px] text-stone-400 flex items-center gap-1">
                     <Coins className="w-3 h-3 text-amber-400" /> Treasury
@@ -582,22 +686,46 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     {activeFaction.standingPoints} pts
                   </div>
                 </div>
+                <div className="bg-stone-950 p-2 rounded border border-stone-800">
+                  <div className="text-[10px] text-stone-400">Assembly</div>
+                  <div className="text-sm font-bold text-sky-300">
+                    {activeFaction.assemblySupport ?? 50}%
+                  </div>
+                </div>
               </div>
             )}
 
             {activeRole && (
-              <div className="text-xs bg-stone-950/90 px-3 py-2 rounded border border-stone-800/90 flex items-center justify-between">
-                <div>
-                  <span className="font-semibold text-amber-200">
-                    {activeRole.title}
-                  </span>
-                  <span className="block text-[11px] text-stone-400 truncate max-w-xs">
-                    {activeRole.aiPersonaPrompt}
+              <div className="text-xs bg-stone-950/90 px-3 py-2 rounded border border-stone-800/90 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold text-amber-200">
+                      {activeRole.title}
+                    </span>
+                    <span className="block text-[11px] text-stone-400 truncate max-w-xs">
+                      {activeRole.aiPersonaPrompt}
+                    </span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-stone-800 text-stone-200 border border-stone-700">
+                    {activeRole.controller} • {activeRole.botBehavior}
                   </span>
                 </div>
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono bg-stone-800 text-stone-200 border border-stone-700">
-                  {activeRole.controller} • {activeRole.botBehavior}
-                </span>
+                {activeRole.strategicObjective && (
+                  <div
+                    className="flex items-center justify-between pt-1 border-t border-stone-800/80 text-[11px] font-mono text-purple-300"
+                    data-testid="role-strategic-objective"
+                  >
+                    <span>
+                      Campaign:{" "}
+                      {activeRole.strategicObjective.campaignName ??
+                        activeRole.strategicObjective.objectiveType}
+                    </span>
+                    <span className="px-1.5 py-0.5 rounded bg-purple-950 border border-purple-800 text-[10px]">
+                      {activeRole.strategicObjective.status} (T
+                      {activeRole.strategicObjective.targetDeadlineTurn ?? "?"})
+                    </span>
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -657,6 +785,21 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                         <option value="TRADE">TRADE (Merchant Convoy)</option>
                         <option value="SUBSIDIZE">SUBSIDIZE (Allied Gift)</option>
                         <option value="RAID">RAID (Frontier War Party)</option>
+                        <option value="AMPHIBIOUS_ASSAULT">
+                          AMPHIBIOUS_ASSAULT (Naval Landing &amp; Bombardment)
+                        </option>
+                        <option value="DECLARE_WAR">
+                          DECLARE_WAR (Open Hostilities vs Neutral)
+                        </option>
+                        <option value="ASSEMBLY_NEGOTIATION">
+                          ASSEMBLY_NEGOTIATION (Colonial Legislature)
+                        </option>
+                        <option value="COVENANT_BOUNDARY">
+                          COVENANT_BOUNDARY (Easton / Council Line)
+                        </option>
+                        <option value="TREATY_CONFERENCE">
+                          TREATY_CONFERENCE (Convene Peace Congress)
+                        </option>
                       </select>
                     </div>
                     <div>
