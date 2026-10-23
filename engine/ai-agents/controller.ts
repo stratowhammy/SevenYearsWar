@@ -31,6 +31,51 @@ export function getModelConfig(roleType: RoleType, behavior: BotBehavior) {
   };
 }
 
+export function findNextHopTowardObjective(
+  startNodeId: string,
+  targetNodeId: string,
+  mapNetwork?: Array<{ id: string; adjacentNodeIds: string[] }>
+): string | null {
+  if (!startNodeId || !targetNodeId || startNodeId === targetNodeId) return null;
+  if (!mapNetwork || mapNetwork.length === 0) return null;
+
+  const adjMap = new Map<string, string[]>();
+  for (const n of mapNetwork) {
+    adjMap.set(n.id, n.adjacentNodeIds);
+  }
+
+  const directNeighbors = adjMap.get(startNodeId) ?? [];
+  if (directNeighbors.includes(targetNodeId)) {
+    return targetNodeId;
+  }
+
+  // BFS shortest path search
+  const queue: Array<{ current: string; firstHop: string }> = [];
+  const visited = new Set<string>([startNodeId]);
+
+  for (const nbr of directNeighbors) {
+    if (nbr === targetNodeId) return nbr;
+    visited.add(nbr);
+    queue.push({ current: nbr, firstHop: nbr });
+  }
+
+  while (queue.length > 0) {
+    const { current, firstHop } = queue.shift()!;
+    const neighbors = adjMap.get(current) ?? [];
+    for (const nbr of neighbors) {
+      if (nbr === targetNodeId) {
+        return firstHop;
+      }
+      if (!visited.has(nbr)) {
+        visited.add(nbr);
+        queue.push({ current: nbr, firstHop });
+      }
+    }
+  }
+
+  return null;
+}
+
 function synthesizeDeterministicAutonomousOrders(
   contextPayload: Awaited<ReturnType<typeof getRoleContextPayload>>,
   roleType: RoleType
@@ -133,33 +178,67 @@ function synthesizeDeterministicAutonomousOrders(
   }
 
   if (roleType === RoleType.MILITARY) {
-    if (primaryUnit && primaryNode) {
-      const preferredTarget =
+    if (primaryUnit) {
+      let preferredTarget: string | undefined;
+
+      // 1. If an active strategic objective exists, use multi-hop pathfinding toward it
+      if (
         activeObjective?.status === "IN_PROGRESS" &&
-        activeObjective.objectiveNodeId &&
-        primaryUnit.adjacentNodeIds.includes(activeObjective.objectiveNodeId)
-          ? activeObjective.objectiveNodeId
-          : primaryNode.adjacentNodeIds[0] ?? primaryUnit.nodeId;
+        activeObjective.objectiveNodeId
+      ) {
+        const nextHop = findNextHopTowardObjective(
+          primaryUnit.nodeId,
+          activeObjective.objectiveNodeId,
+          (contextPayload as any).mapNetwork
+        );
+        if (nextHop) {
+          preferredTarget = nextHop;
+        }
+      }
 
-      const hasNavalFleet = units.some(
-        (u) => u.type === "SHIP_OF_THE_LINE" || u.type === "MERCHANTMAN"
+      // 2. If no path found or already at objective, pick an adjacent enemy or unowned node
+      if (!preferredTarget || preferredTarget === primaryUnit.nodeId) {
+        const enemyAdjacent = (primaryUnit as any).adjacentNodes?.find(
+          (an: any) => an.owner !== contextPayload.factionType && an.id !== primaryUnit.nodeId
+        );
+        preferredTarget =
+          enemyAdjacent?.id ??
+          primaryUnit.adjacentNodeIds.find((id) => id !== primaryUnit.nodeId) ??
+          primaryNode?.adjacentNodeIds.find((id) => id !== primaryUnit.nodeId) ??
+          primaryUnit.nodeId;
+      }
+
+      const targetMeta = (contextPayload as any).mapNetwork?.find(
+        (n: any) => n.id === preferredTarget
       );
+      const isTargetSeaZone = targetMeta?.nodeType === "SEA_ZONE";
 
-      actionOrders.push({
-        orderType: isIndigenous
-          ? "RAID"
-          : hasNavalFleet && primaryUnit.type === "SHIP_OF_THE_LINE"
-          ? "AMPHIBIOUS_ASSAULT"
-          : "MOVE",
-        sourceNodeId: primaryUnit.nodeId,
-        targetNodeId: preferredTarget,
-        unitIds: [primaryUnit.id],
-        allocatedTreasury: Math.min(15, Math.floor(treasury * 0.1)),
-        reasoning: `Advance ${primaryUnit.type} from ${primaryUnit.location} toward operational objective`.slice(
-          0,
-          100
-        ),
-      });
+      let orderType: "MOVE" | "RAID" | "AMPHIBIOUS_ASSAULT" = "MOVE";
+      if (isIndigenous) {
+        orderType = "RAID";
+      } else if (
+        primaryUnit.type === "SHIP_OF_THE_LINE" &&
+        !isTargetSeaZone &&
+        preferredTarget !== primaryUnit.nodeId
+      ) {
+        orderType = "AMPHIBIOUS_ASSAULT";
+      } else {
+        orderType = "MOVE";
+      }
+
+      if (preferredTarget && preferredTarget !== primaryUnit.nodeId) {
+        actionOrders.push({
+          orderType,
+          sourceNodeId: primaryUnit.nodeId,
+          targetNodeId: preferredTarget,
+          unitIds: [primaryUnit.id],
+          allocatedTreasury: Math.min(15, Math.floor(treasury * 0.1)),
+          reasoning: `Advance ${primaryUnit.type} from ${primaryUnit.location} toward ${targetMeta?.name ?? "operational objective"}`.slice(
+            0,
+            100
+          ),
+        });
+      }
     }
     if (primaryNode && treasury >= 30) {
       actionOrders.push({
@@ -350,21 +429,42 @@ export async function invokeRoleAIController(params: {
       (existingObj.targetDeadlineTurn &&
         existingObj.targetDeadlineTurn < game.turnNumber)
     ) {
-      const firstOrderTarget =
-        parsedOrders.actionOrders[0]?.targetNodeId ??
-        parsedOrders.actionOrders[0]?.sourceNodeId ??
-        contextPayload.controlledNodes[0]?.adjacentNodeIds[0] ??
-        contextPayload.controlledNodes[0]?.id;
+      let objectiveTarget: string | undefined;
 
-      if (firstOrderTarget) {
+      if (roleType === RoleType.MILITARY) {
+        const net = (contextPayload as any).mapNetwork as Array<{ id: string; name: string; owner: string }> | undefined;
+        if (net && net.length > 0) {
+          if (contextPayload.factionType === "GREAT_BRITAIN") {
+            const louisbourg = net.find((n) => n.name.includes("Louisbourg") && n.owner !== "GREAT_BRITAIN");
+            const quebec = net.find((n) => n.name.includes("Quebec") && n.owner !== "GREAT_BRITAIN");
+            const duquesne = net.find((n) => n.name.includes("Duquesne") && n.owner !== "GREAT_BRITAIN");
+            const niagara = net.find((n) => n.name.includes("Niagara") && n.owner !== "GREAT_BRITAIN");
+            objectiveTarget = louisbourg?.id ?? quebec?.id ?? duquesne?.id ?? niagara?.id;
+          } else if (contextPayload.factionType === "FRANCE") {
+            const oswego = net.find((n) => n.name.includes("Oswego") && n.owner !== "FRANCE");
+            const champlain = net.find((n) => n.name.includes("Champlain") && n.owner !== "FRANCE");
+            objectiveTarget = oswego?.id ?? champlain?.id;
+          }
+        }
+      }
+
+      if (!objectiveTarget) {
+        objectiveTarget =
+          parsedOrders.actionOrders[0]?.targetNodeId ??
+          parsedOrders.actionOrders[0]?.sourceNodeId ??
+          contextPayload.controlledNodes[0]?.adjacentNodeIds[0] ??
+          contextPayload.controlledNodes[0]?.id;
+      }
+
+      if (objectiveTarget) {
         await prisma.factionRole.updateMany({
           where: { factionId, roleType },
           data: {
             strategicObjective: {
-              objectiveNodeId: firstOrderTarget,
+              objectiveNodeId: objectiveTarget,
               objectiveType:
                 roleType === RoleType.MILITARY ? "CAPTURE" : "CONSOLIDATE",
-              targetDeadlineTurn: game.turnNumber + 4,
+              targetDeadlineTurn: game.turnNumber + 6,
               status: "IN_PROGRESS",
               campaignName: `${contextPayload.factionType} ${roleType} Operational Directive`,
             },

@@ -32,6 +32,7 @@ import {
   arbitrateContestedAssault,
   arbitrateFrontierRaid,
   arbitrateAssemblyNegotiation,
+  arbitrateNavalEngagement,
 } from "@/engine/ai-arbiters/story-arbiters";
 
 const PHASE_SEQUENCE: Phase[] = [
@@ -241,7 +242,7 @@ export async function processOrderSubmissionPhase(gameId: string) {
       : 0
   );
 
-  const CONCURRENCY_LIMIT = 5;
+  const CONCURRENCY_LIMIT = 10;
   const aiSubmissions: Array<{
     factionId: string;
     factionType: string;
@@ -657,17 +658,18 @@ export async function processResolutionPhase(gameId: string) {
                 );
               }
 
-              // If previously NEUTRAL, a cross-border raid opens formal hostilities
+              // If previously NEUTRAL, an irregular frontier raid creates border friction without automatic total war declaration
               if (diplomaticStance === "NEUTRAL") {
                 await recordAndReconcileEvent({
                   gameId,
                   turn: game.turnNumber,
-                  category: "WAR_DECLARATION",
+                  category: "DIPLOMACY",
                   scope: EventScope.FACTION,
                   primaryNodeId: targetNode.id,
                   factionIds: [faction.id, targetNode.controllingId],
-                  title: `Hostilities Opened at ${targetNode.name}`,
-                  description: `${faction.type} frontier raids on ${targetNode.name} provoked open warfare with ${targetController?.type}.`,
+                  title: `Frontier Skirmish at ${targetNode.name}`,
+                  description: `${faction.type} irregular raiding parties clashed near ${targetNode.name}, escalating border tension with ${targetController?.type}.`,
+                  validUntilTurn: game.turnNumber + 2,
                 });
               }
             }
@@ -726,156 +728,272 @@ export async function processResolutionPhase(gameId: string) {
                 0
               );
 
-              const assaultRuling = await arbitrateContestedAssault({
-                gameId,
-                turnNumber: game.turnNumber,
-                season: game.currentSeason,
-                year: game.currentYear,
-                targetNode,
-                attackerFaction: faction,
-                defenderFaction: targetController,
-                movingUnits,
-                defenderUnits,
-                baseAttackPower: attackPower,
-                baseDefensePower: defensePower,
-                isAmphibious: false,
-              });
+              let unrestDeltaAttacker = 0;
+              let unrestDeltaDefender = 0;
+              let standingDeltaAttacker = 0;
+              let standingDeltaDefender = 0;
 
-              combatLogs.push(
-                `[Arbiter: ${assaultRuling.arbiterName}] ${assaultRuling.rulingTitle} -> ${assaultRuling.outcome} (${assaultRuling.attackerCasualties} atk / ${assaultRuling.defenderCasualties} def casualties)`
-              );
+              if (targetNode.nodeType === "SEA_ZONE") {
+                const navalRuling = await arbitrateNavalEngagement({
+                  gameId,
+                  turnNumber: game.turnNumber,
+                  season: game.currentSeason,
+                  year: game.currentYear,
+                  targetNode,
+                  attackerFaction: faction,
+                  defenderFaction: targetController,
+                  movingUnits,
+                  defenderUnits,
+                  baseAttackPower: attackPower,
+                  baseDefensePower: defensePower,
+                });
 
-              if (assaultRuling.nodeCaptured) {
-                const previousOwnerId = targetNode.controllingId;
+                unrestDeltaAttacker = navalRuling.unrestDeltaAttacker;
+                unrestDeltaDefender = navalRuling.unrestDeltaDefender;
+                standingDeltaAttacker = navalRuling.standingDeltaAttacker;
+                standingDeltaDefender = navalRuling.standingDeltaDefender;
 
-                for (const defUnit of defenderUnits) {
-                  const lossShare = Math.floor(
-                    assaultRuling.defenderCasualties / Math.max(1, defenderUnits.length)
-                  );
-                  const surviving = Math.max(0, defUnit.strength - lossShare);
-                  if (surviving < 150) {
-                    await prisma.unit.delete({ where: { id: defUnit.id } });
-                  } else {
+                combatLogs.push(
+                  `[Arbiter: ${navalRuling.arbiterName}] ${navalRuling.rulingTitle} -> ${navalRuling.outcome} (${navalRuling.attackerCasualties} atk / ${navalRuling.defenderCasualties} def naval casualties)`
+                );
+
+                if (navalRuling.seaZoneSecured) {
+                  const previousOwnerId = targetNode.controllingId;
+
+                  for (const defUnit of defenderUnits) {
+                    const lossShare = Math.floor(
+                      navalRuling.defenderCasualties / Math.max(1, defenderUnits.length)
+                    );
+                    const surviving = Math.max(0, defUnit.strength - lossShare);
+                    if (surviving < 150) {
+                      await prisma.unit.delete({ where: { id: defUnit.id } });
+                    } else {
+                      await prisma.unit.update({
+                        where: { id: defUnit.id },
+                        data: { strength: surviving },
+                      });
+                    }
+                  }
+
+                  for (const atkUnit of movingUnits) {
+                    const lossShare = Math.floor(
+                      navalRuling.attackerCasualties / Math.max(1, movingUnits.length)
+                    );
+                    await prisma.unit.update({
+                      where: { id: atkUnit.id },
+                      data: {
+                        nodeId: targetNode.id,
+                        strength: Math.max(150, atkUnit.strength - lossShare),
+                      },
+                    });
+                  }
+
+                  if (previousOwnerId !== faction.id) {
+                    await prisma.mapNode.update({
+                      where: { id: targetNode.id },
+                      data: { controllingId: faction.id },
+                    });
+
+                    const involvedFactions = previousOwnerId
+                      ? [faction.id, previousOwnerId]
+                      : [faction.id];
+
+                    await recordAndReconcileEvent({
+                      gameId,
+                      turn: game.turnNumber,
+                      category: "MILITARY",
+                      scope: EventScope.NODE,
+                      primaryNodeId: targetNode.id,
+                      factionIds: involvedFactions,
+                      title: `Naval Command Secured in ${targetNode.name}`,
+                      description: `Squadrons of ${faction.type} defeated hostile warships and secured command of ${targetNode.name}.`,
+                    });
+
+                    combatLogs.push(
+                      `${faction.type} secured naval command over ${targetNode.name}`
+                    );
+                  }
+                } else {
+                  for (const atkUnit of movingUnits) {
+                    const lossShare = Math.floor(
+                      navalRuling.attackerCasualties / Math.max(1, movingUnits.length)
+                    );
+                    await prisma.unit.update({
+                      where: { id: atkUnit.id },
+                      data: {
+                        strength: Math.max(150, atkUnit.strength - lossShare),
+                      },
+                    });
+                  }
+                  for (const defUnit of defenderUnits) {
+                    const lossShare = Math.floor(
+                      navalRuling.defenderCasualties / Math.max(1, defenderUnits.length)
+                    );
                     await prisma.unit.update({
                       where: { id: defUnit.id },
-                      data: { strength: surviving },
+                      data: {
+                        strength: Math.max(150, defUnit.strength - lossShare),
+                      },
                     });
                   }
                 }
-
-                for (const atkUnit of movingUnits) {
-                  const lossShare = Math.floor(
-                    assaultRuling.attackerCasualties / Math.max(1, movingUnits.length)
-                  );
-                  await prisma.unit.update({
-                    where: { id: atkUnit.id },
-                    data: {
-                      nodeId: targetNode.id,
-                      strength: Math.max(
-                        150,
-                        atkUnit.strength - lossShare
-                      ),
-                    },
-                  });
-                }
-
-                if (previousOwnerId !== faction.id) {
-                  await prisma.mapNode.update({
-                    where: { id: targetNode.id },
-                    data: { controllingId: faction.id },
-                  });
-
-                  const involvedFactions = previousOwnerId
-                    ? [faction.id, previousOwnerId]
-                    : [faction.id];
-
-                  await recordAndReconcileEvent({
-                    gameId,
-                    turn: game.turnNumber,
-                    category: "FORT_CAPTURED",
-                    scope: EventScope.NODE,
-                    primaryNodeId: targetNode.id,
-                    factionIds: involvedFactions,
-                    title: `Capture of ${targetNode.name}`,
-                    description: `Forces of ${faction.type} seized ${targetNode.name}, superseding prior garrison and siege orders.`,
-                  });
-
-                  combatLogs.push(
-                    `${faction.type} captured ${targetNode.name}`
-                  );
-                }
               } else {
-                for (const atkUnit of movingUnits) {
-                  const lossShare = Math.floor(
-                    assaultRuling.attackerCasualties / Math.max(1, movingUnits.length)
-                  );
-                  await prisma.unit.update({
-                    where: { id: atkUnit.id },
-                    data: {
-                      strength: Math.max(
-                        150,
-                        atkUnit.strength - lossShare
-                      ),
-                    },
-                  });
-                }
-                for (const defUnit of defenderUnits) {
-                  const lossShare = Math.floor(
-                    assaultRuling.defenderCasualties / Math.max(1, defenderUnits.length)
-                  );
-                  await prisma.unit.update({
-                    where: { id: defUnit.id },
-                    data: {
-                      strength: Math.max(
-                        150,
-                        defUnit.strength - lossShare
-                      ),
-                    },
-                  });
-                }
+                const assaultRuling = await arbitrateContestedAssault({
+                  gameId,
+                  turnNumber: game.turnNumber,
+                  season: game.currentSeason,
+                  year: game.currentYear,
+                  targetNode,
+                  attackerFaction: faction,
+                  defenderFaction: targetController,
+                  movingUnits,
+                  defenderUnits,
+                  baseAttackPower: attackPower,
+                  baseDefensePower: defensePower,
+                  isAmphibious: false,
+                });
+
+                unrestDeltaAttacker = assaultRuling.unrestDeltaAttacker;
+                unrestDeltaDefender = assaultRuling.unrestDeltaDefender;
+                standingDeltaAttacker = assaultRuling.standingDeltaAttacker;
+                standingDeltaDefender = assaultRuling.standingDeltaDefender;
+
                 combatLogs.push(
-                  `Assault on ${targetNode.name} by ${faction.type}: ${assaultRuling.outcome}`
+                  `[Arbiter: ${assaultRuling.arbiterName}] ${assaultRuling.rulingTitle} -> ${assaultRuling.outcome} (${assaultRuling.attackerCasualties} atk / ${assaultRuling.defenderCasualties} def casualties)`
                 );
+
+                if (assaultRuling.nodeCaptured) {
+                  const previousOwnerId = targetNode.controllingId;
+
+                  for (const defUnit of defenderUnits) {
+                    const lossShare = Math.floor(
+                      assaultRuling.defenderCasualties / Math.max(1, defenderUnits.length)
+                    );
+                    const surviving = Math.max(0, defUnit.strength - lossShare);
+                    if (surviving < 150) {
+                      await prisma.unit.delete({ where: { id: defUnit.id } });
+                    } else {
+                      await prisma.unit.update({
+                        where: { id: defUnit.id },
+                        data: { strength: surviving },
+                      });
+                    }
+                  }
+
+                  for (const atkUnit of movingUnits) {
+                    const lossShare = Math.floor(
+                      assaultRuling.attackerCasualties / Math.max(1, movingUnits.length)
+                    );
+                    await prisma.unit.update({
+                      where: { id: atkUnit.id },
+                      data: {
+                        nodeId: targetNode.id,
+                        strength: Math.max(
+                          150,
+                          atkUnit.strength - lossShare
+                        ),
+                      },
+                    });
+                  }
+
+                  if (previousOwnerId !== faction.id) {
+                    await prisma.mapNode.update({
+                      where: { id: targetNode.id },
+                      data: { controllingId: faction.id },
+                    });
+
+                    const involvedFactions = previousOwnerId
+                      ? [faction.id, previousOwnerId]
+                      : [faction.id];
+
+                    await recordAndReconcileEvent({
+                      gameId,
+                      turn: game.turnNumber,
+                      category: "FORT_CAPTURED",
+                      scope: EventScope.NODE,
+                      primaryNodeId: targetNode.id,
+                      factionIds: involvedFactions,
+                      title: `Capture of ${targetNode.name}`,
+                      description: `Forces of ${faction.type} seized ${targetNode.name}, superseding prior garrison and siege orders.`,
+                    });
+
+                    combatLogs.push(
+                      `${faction.type} captured ${targetNode.name}`
+                    );
+                  }
+                } else {
+                  for (const atkUnit of movingUnits) {
+                    const lossShare = Math.floor(
+                      assaultRuling.attackerCasualties / Math.max(1, movingUnits.length)
+                    );
+                    await prisma.unit.update({
+                      where: { id: atkUnit.id },
+                      data: {
+                        strength: Math.max(
+                          150,
+                          atkUnit.strength - lossShare
+                        ),
+                      },
+                    });
+                  }
+                  for (const defUnit of defenderUnits) {
+                    const lossShare = Math.floor(
+                      assaultRuling.defenderCasualties / Math.max(1, defenderUnits.length)
+                    );
+                    await prisma.unit.update({
+                      where: { id: defUnit.id },
+                      data: {
+                        strength: Math.max(
+                          150,
+                          defUnit.strength - lossShare
+                        ),
+                      },
+                    });
+                  }
+                  combatLogs.push(
+                    `Assault on ${targetNode.name} by ${faction.type}: ${assaultRuling.outcome}`
+                  );
+                }
               }
 
               // Apply Unrest and Standing Deltas from Arbiter Ruling
-              if (assaultRuling.unrestDeltaAttacker !== 0) {
+              if (unrestDeltaAttacker !== 0) {
                 await prisma.faction.update({
                   where: { id: faction.id },
                   data: {
                     unrestIndex: clampUnrest(
-                      faction.unrestIndex + assaultRuling.unrestDeltaAttacker
+                      faction.unrestIndex + unrestDeltaAttacker
                     ),
                   },
                 });
               }
-              if (targetController && assaultRuling.unrestDeltaDefender !== 0) {
+              if (targetController && unrestDeltaDefender !== 0) {
                 await prisma.faction.update({
                   where: { id: targetController.id },
                   data: {
                     unrestIndex: clampUnrest(
-                      targetController.unrestIndex + assaultRuling.unrestDeltaDefender
+                      targetController.unrestIndex + unrestDeltaDefender
                     ),
                   },
                 });
               }
-              if (assaultRuling.standingDeltaAttacker !== 0) {
+              if (standingDeltaAttacker !== 0) {
                 await prisma.faction.update({
                   where: { id: faction.id },
                   data: {
                     standingPoints: clampStanding(
-                      faction.standingPoints + assaultRuling.standingDeltaAttacker
+                      faction.standingPoints + standingDeltaAttacker
                     ),
                   },
                 });
               }
-              if (targetController && assaultRuling.standingDeltaDefender !== 0) {
+              if (targetController && standingDeltaDefender !== 0) {
                 await prisma.faction.update({
                   where: { id: targetController.id },
                   data: {
                     standingPoints: clampStanding(
                       targetController.standingPoints +
-                        assaultRuling.standingDeltaDefender
+                        standingDeltaDefender
                     ),
                   },
                 });
@@ -969,92 +1087,139 @@ export async function processResolutionPhase(gameId: string) {
           }
 
           if (!fleetRepulsed) {
-            combatLogs.push(
-              `[Amphibious Assault] ${faction.type} fleet conducted preliminary naval bombardment on ${targetNode.name}!`
-            );
-
-            const candidateLandUnits = await prisma.unit.findMany({
-              where: {
-                factionId: faction.id,
-                ...(payload.unitIds && payload.unitIds.length > 0
-                  ? { id: { in: payload.unitIds } }
-                  : payload.sourceNodeId
-                  ? { nodeId: payload.sourceNodeId }
-                  : {}),
-              },
-              take: 2,
-            });
-
-            const defenderUnits = targetNode.units.filter(
-              (u) => u.factionId !== faction.id
-            );
-            const attackPower =
-              (candidateLandUnits.reduce(
-                (sum, u) => sum + u.strength * u.discipline,
-                0
-              ) || 1200) * 1.35; // 35% preliminary bombardment advantage
-            const defensePower = defenderUnits.reduce(
-              (sum, u) => sum + u.strength * u.discipline,
-              0
-            );
-
-            const assaultRuling = await arbitrateContestedAssault({
-              gameId,
-              turnNumber: game.turnNumber,
-              season: game.currentSeason,
-              year: game.currentYear,
-              targetNode,
-              attackerFaction: faction,
-              defenderFaction: targetNode.controller,
-              movingUnits: candidateLandUnits,
-              defenderUnits,
-              baseAttackPower: attackPower,
-              baseDefensePower: defensePower,
-              isAmphibious: true,
-            });
-
-            combatLogs.push(
-              `[Arbiter: ${assaultRuling.arbiterName}] ${assaultRuling.rulingTitle} -> ${assaultRuling.outcome} (${assaultRuling.attackerCasualties} atk / ${assaultRuling.defenderCasualties} def casualties)`
-            );
-
-            if (assaultRuling.nodeCaptured) {
-              const previousOwnerId = targetNode.controllingId;
-              for (const defUnit of defenderUnits) {
-                await prisma.unit.delete({ where: { id: defUnit.id } });
-              }
-              for (const atkUnit of candidateLandUnits) {
-                const lossShare = Math.floor(
-                  assaultRuling.attackerCasualties / Math.max(1, candidateLandUnits.length)
-                );
-                await prisma.unit.update({
-                  where: { id: atkUnit.id },
-                  data: {
-                    nodeId: targetNode.id,
-                    strength: Math.max(150, atkUnit.strength - lossShare),
-                  },
-                });
-              }
-              await prisma.mapNode.update({
-                where: { id: targetNode.id },
-                data: { controllingId: faction.id },
+            if (targetNode.nodeType === "SEA_ZONE") {
+              const movingUnits = faction.units.filter(
+                (u) =>
+                  isNavalUnitType(u.unitType) &&
+                  (u.nodeId === targetNode.id || adjacentSeaIds.includes(u.nodeId))
+              );
+              const navalRuling = await arbitrateNavalEngagement({
+                gameId,
+                turnNumber: game.turnNumber,
+                season: game.currentSeason,
+                year: game.currentYear,
+                targetNode,
+                attackerFaction: faction,
+                defenderFaction: targetNode.controller,
+                movingUnits,
+                defenderUnits: targetNode.units.filter((u) => u.factionId !== faction.id),
+                baseAttackPower: 1800,
+                baseDefensePower: targetNode.units
+                  .filter((u) => u.factionId !== faction.id)
+                  .reduce((sum, u) => sum + u.strength * u.discipline, 0),
               });
+
               combatLogs.push(
-                `${faction.type} captured ${targetNode.name} via combined amphibious assault`
+                `[Arbiter: ${navalRuling.arbiterName}] ${navalRuling.rulingTitle} -> ${navalRuling.outcome} (${navalRuling.attackerCasualties} atk / ${navalRuling.defenderCasualties} def naval casualties)`
               );
 
-              if (previousOwnerId && previousOwnerId !== faction.id) {
-                await recordAndReconcileEvent({
-                  gameId,
-                  turn: game.turnNumber,
-                  category: "FORT_CAPTURED",
-                  scope: EventScope.NODE,
-                  primaryNodeId: targetNode.id,
-                  factionIds: [faction.id, previousOwnerId],
-                  title: `Amphibious Fall of ${targetNode.name}`,
-                  description: `${faction.type} forces stormed ashore under heavy naval gunfire, capturing ${targetNode.name}.`,
+              if (navalRuling.seaZoneSecured) {
+                await prisma.mapNode.update({
+                  where: { id: targetNode.id },
+                  data: { controllingId: faction.id },
                 });
+                combatLogs.push(
+                  `${faction.type} secured naval command over ${targetNode.name}`
+                );
               }
             } else {
+              combatLogs.push(
+                `[Amphibious Assault] ${faction.type} fleet conducted preliminary naval bombardment on ${targetNode.name}!`
+              );
+
+              const candidateLandUnits = await prisma.unit.findMany({
+                where: {
+                  factionId: faction.id,
+                  ...(payload.unitIds && payload.unitIds.length > 0
+                    ? { id: { in: payload.unitIds } }
+                    : payload.sourceNodeId
+                    ? { nodeId: payload.sourceNodeId }
+                    : {}),
+                },
+                take: 2,
+              });
+
+              const defenderUnits = targetNode.units.filter(
+                (u) => u.factionId !== faction.id
+              );
+              const attackPower =
+                (candidateLandUnits.reduce(
+                  (sum, u) => sum + u.strength * u.discipline,
+                  0
+                ) || 1200) * 1.35; // 35% preliminary bombardment advantage
+              const defensePower = defenderUnits.reduce(
+                (sum, u) => sum + u.strength * u.discipline,
+                0
+              );
+
+              const assaultRuling = await arbitrateContestedAssault({
+                gameId,
+                turnNumber: game.turnNumber,
+                season: game.currentSeason,
+                year: game.currentYear,
+                targetNode,
+                attackerFaction: faction,
+                defenderFaction: targetNode.controller,
+                movingUnits: candidateLandUnits,
+                defenderUnits,
+                baseAttackPower: attackPower,
+                baseDefensePower: defensePower,
+                isAmphibious: true,
+              });
+
+              combatLogs.push(
+                `[Arbiter: ${assaultRuling.arbiterName}] ${assaultRuling.rulingTitle} -> ${assaultRuling.outcome} (${assaultRuling.attackerCasualties} atk / ${assaultRuling.defenderCasualties} def casualties)`
+              );
+
+              if (assaultRuling.nodeCaptured) {
+                const previousOwnerId = targetNode.controllingId;
+                for (const defUnit of defenderUnits) {
+                  const lossShare = Math.floor(
+                    assaultRuling.defenderCasualties / Math.max(1, defenderUnits.length)
+                  );
+                  const surviving = Math.max(0, defUnit.strength - lossShare);
+                  if (surviving < 150) {
+                    await prisma.unit.delete({ where: { id: defUnit.id } });
+                  } else {
+                    await prisma.unit.update({
+                      where: { id: defUnit.id },
+                      data: { strength: surviving },
+                    });
+                  }
+                }
+                for (const atkUnit of candidateLandUnits) {
+                  const lossShare = Math.floor(
+                    assaultRuling.attackerCasualties / Math.max(1, candidateLandUnits.length)
+                  );
+                  await prisma.unit.update({
+                    where: { id: atkUnit.id },
+                    data: {
+                      nodeId: targetNode.id,
+                      strength: Math.max(150, atkUnit.strength - lossShare),
+                    },
+                  });
+                }
+                await prisma.mapNode.update({
+                  where: { id: targetNode.id },
+                  data: { controllingId: faction.id },
+                });
+                combatLogs.push(
+                  `${faction.type} captured ${targetNode.name} via combined amphibious assault`
+                );
+
+                if (previousOwnerId && previousOwnerId !== faction.id) {
+                  await recordAndReconcileEvent({
+                    gameId,
+                    turn: game.turnNumber,
+                    category: "FORT_CAPTURED",
+                    scope: EventScope.NODE,
+                    primaryNodeId: targetNode.id,
+                    factionIds: [faction.id, previousOwnerId],
+                    title: `Amphibious Fall of ${targetNode.name}`,
+                    description: `${faction.type} forces stormed ashore under heavy naval gunfire, capturing ${targetNode.name}.`,
+                  });
+                }
+              } else {
               for (const atkUnit of candidateLandUnits) {
                 const lossShare = Math.floor(
                   assaultRuling.attackerCasualties / Math.max(1, candidateLandUnits.length)
@@ -1073,7 +1238,8 @@ export async function processResolutionPhase(gameId: string) {
           }
         }
       }
-    } else if (order.orderType === "DECLARE_WAR" && payload.targetNodeId) {
+    }
+  } else if (order.orderType === "DECLARE_WAR" && payload.targetNodeId) {
       const targetNode = await prisma.mapNode.findUnique({
         where: { id: payload.targetNodeId },
         include: { controller: true },

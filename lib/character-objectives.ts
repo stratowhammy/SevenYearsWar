@@ -102,12 +102,20 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "TERRITORIAL",
         evaluate: (ctx) => {
           const res = hasNodeControl(ctx, ["Louisbourg", "Quebec"]);
-          const pts = res.allControlled ? 5 : res.controlledCount >= 1 ? 3 : 0;
+          const hasAtlantic = hasNodeControl(ctx, ["Atlantic Shipping Lanes"]).controlledCount >= 1;
+          const moves = countOrdersOfType(ctx, ["MOVE", "AMPHIBIOUS_ASSAULT"]);
+          const pts = res.allControlled ? 5 : res.controlledCount >= 1 ? 3 : (hasAtlantic && moves >= 4) ? 2 : 0;
           return {
             isCompleted: res.allControlled,
             earnedVP: pts,
-            progressText: `${res.controlledCount} / ${res.totalRequired} Citadels Captured (+${pts}/5 VP)`,
-            progressPercent: Math.round((res.controlledCount / res.totalRequired) * 100),
+            progressText: res.allControlled
+              ? "2 / 2 Citadels Captured (+5/5 VP)"
+              : res.controlledCount >= 1
+              ? `${res.controlledCount} / 2 Citadels Captured (+3/5 VP)`
+              : pts > 0
+              ? `Maritime Blockade of New France Active (+2/5 VP)`
+              : `0 / 2 Citadels Captured (+0/5 VP)`,
+            progressPercent: res.allControlled ? 100 : res.controlledCount >= 1 ? 60 : pts > 0 ? 40 : 0,
           };
         },
       },
@@ -180,7 +188,9 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "MILITARY",
         evaluate: (ctx) => {
           const res = hasNodeControl(ctx, ["Duquesne", "Niagara"]);
-          const pts = res.allControlled ? 4 : res.controlledCount >= 1 ? 2 : 0;
+          const hasOswego = hasNodeControl(ctx, ["Fort Oswego"]).controlledCount >= 1;
+          const str = getTotalStrength(ctx);
+          const pts = res.allControlled ? 4 : res.controlledCount >= 1 ? 2 : (hasOswego && str >= 4000) ? 1 : 0;
           return {
             isCompleted: res.allControlled,
             earnedVP: pts,
@@ -201,11 +211,11 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const str = getTotalStrength(ctx);
           const full = str >= 5000;
-          const pts = full ? 3 : str >= 3800 ? 1 : 0;
+          const pts = full ? 3 : str >= 4500 ? 2 : str >= 3500 ? 1 : 0;
           return {
             isCompleted: full,
             earnedVP: pts,
-            progressText: `${str.toLocaleString()} / 5,000 Total Strength`,
+            progressText: `${str.toLocaleString()} / 5,000 Total Strength (+${pts}/3 VP)`,
             progressPercent: Math.min(100, Math.round((str / 5000) * 100)),
           };
         },
@@ -1070,7 +1080,8 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const t = ctx.faction?.treasury ?? 0;
           const trades = countOrdersOfType(ctx, ["EXTRACT", "TRADE"]);
-          const full = t >= 320 && trades >= 2;
+          const dispatches = countOrdersOfType(ctx, ["SUBSIDIZE"]) + (ctx.factionDispatches?.length ?? 0);
+          const full = t >= 320 && trades >= 2 && dispatches >= 1;
           const pts = full ? 4 : t >= 250 ? 2 : 0;
           return {
             isCompleted: full,
@@ -1114,13 +1125,13 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const pts = ctx.faction?.standingPoints ?? 0;
           const dispatches = countOrdersOfType(ctx, ["SUBSIDIZE"]) + (ctx.factionDispatches?.length ?? 0);
-          const full = pts >= 7 && dispatches >= 1;
+          const full = pts >= 7 && dispatches >= 2;
           const partial = pts >= 6;
           const earned = full ? 3 : partial ? 1 : 0;
           return {
             isCompleted: full,
             earnedVP: earned,
-            progressText: `${pts}/7 Standing • ${dispatches}/1 Dispatch (+${earned}/3 VP)`,
+            progressText: `${pts}/7 Standing • ${dispatches}/2 Mediator Dispatches (+${earned}/3 VP)`,
             progressPercent: full ? 100 : partial ? 65 : 30,
           };
         },

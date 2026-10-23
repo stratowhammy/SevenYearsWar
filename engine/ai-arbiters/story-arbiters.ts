@@ -395,3 +395,188 @@ export async function arbitrateAssemblyNegotiation(params: {
     arbiterName: arbiter.name,
   };
 }
+
+export interface ArbiterNavalRuling {
+  outcome:
+    | "LINE_OF_BATTLE_VICTORY"
+    | "CONVOY_SCATTERED"
+    | "TACTICAL_STANDOFF"
+    | "DISMASTED_WITHDRAWAL";
+  seaZoneSecured: boolean;
+  attackerCasualties: number;
+  defenderCasualties: number;
+  unrestDeltaAttacker: number;
+  unrestDeltaDefender: number;
+  standingDeltaAttacker: number;
+  standingDeltaDefender: number;
+  rulingTitle: string;
+  rulingDispatch: string;
+  arbiterName: string;
+}
+
+export async function arbitrateNavalEngagement(params: {
+  gameId: string;
+  turnNumber: number;
+  season: string;
+  year: number;
+  targetNode: any;
+  attackerFaction: any;
+  defenderFaction: any;
+  movingUnits: any[];
+  defenderUnits: any[];
+  baseAttackPower: number;
+  baseDefensePower: number;
+}): Promise<ArbiterNavalRuling> {
+  const {
+    gameId,
+    turnNumber,
+    season,
+    year,
+    targetNode,
+    attackerFaction,
+    defenderFaction,
+    movingUnits,
+    defenderUnits,
+    baseAttackPower,
+    baseDefensePower,
+  } = params;
+
+  const arbiter = selectActiveStoryArbiter(
+    turnNumber,
+    "NAVAL",
+    attackerFaction.type,
+    defenderFaction?.type
+  );
+
+  const totalAtkStrength = movingUnits.reduce((s, u) => s + u.strength, 0);
+  const totalDefStrength = defenderUnits.reduce((s, u) => s + u.strength, 0);
+  const ratio =
+    baseDefensePower > 0 ? baseAttackPower / baseDefensePower : 999.0;
+
+  const rollSeed =
+    (turnNumber * 43 +
+      totalAtkStrength * 19 +
+      totalDefStrength * 11 +
+      targetNode.name.length * 7) %
+    100;
+
+  let outcome: ArbiterNavalRuling["outcome"];
+  let seaZoneSecured = false;
+  let attackerLossFactor = 0.1;
+  let defenderLossFactor = 0.25;
+  let unrestAtk = 0;
+  let unrestDef = 0;
+  let standingAtk = 0;
+  let standingDef = 0;
+
+  if (ratio >= 2.0 || baseDefensePower === 0) {
+    outcome = "LINE_OF_BATTLE_VICTORY";
+    seaZoneSecured = true;
+    attackerLossFactor = 0.08;
+    defenderLossFactor = 0.45;
+    standingAtk = 1;
+    unrestDef = 4;
+  } else if (ratio <= 0.5) {
+    outcome = "DISMASTED_WITHDRAWAL";
+    seaZoneSecured = false;
+    attackerLossFactor = 0.35;
+    defenderLossFactor = 0.08;
+    standingDef = 1;
+    unrestAtk = 5;
+  } else {
+    // Contested naval action
+    if (arbiter.id === "arbiter-boscawen") {
+      if (rollSeed > 35) {
+        outcome = "LINE_OF_BATTLE_VICTORY";
+        seaZoneSecured = true;
+        attackerLossFactor = 0.12;
+        defenderLossFactor = 0.35;
+        standingAtk = 1;
+      } else {
+        outcome = "TACTICAL_STANDOFF";
+        seaZoneSecured = false;
+        attackerLossFactor = 0.15;
+        defenderLossFactor = 0.15;
+      }
+    } else if (arbiter.id === "arbiter-conflans") {
+      if (rollSeed < 40) {
+        outcome = "CONVOY_SCATTERED";
+        seaZoneSecured = true;
+        attackerLossFactor = 0.1;
+        defenderLossFactor = 0.25;
+      } else {
+        outcome = "TACTICAL_STANDOFF";
+        seaZoneSecured = false;
+        attackerLossFactor = 0.12;
+        defenderLossFactor = 0.12;
+      }
+    } else {
+      if (ratio >= 1.0 && rollSeed > 50) {
+        outcome = "LINE_OF_BATTLE_VICTORY";
+        seaZoneSecured = true;
+        attackerLossFactor = 0.14;
+        defenderLossFactor = 0.3;
+        standingAtk = 1;
+      } else {
+        outcome = "TACTICAL_STANDOFF";
+        seaZoneSecured = false;
+        attackerLossFactor = 0.12;
+        defenderLossFactor = 0.12;
+      }
+    }
+  }
+
+  const attackerCasualties = Math.max(
+    30,
+    Math.round(totalAtkStrength * attackerLossFactor)
+  );
+  const defenderCasualties = Math.max(
+    20,
+    Math.round(totalDefStrength * defenderLossFactor)
+  );
+
+  let rulingTitle = `[Arbiter Ruling: ${arbiter.name}] `;
+  let rulingDispatch = "";
+
+  if (outcome === "LINE_OF_BATTLE_VICTORY") {
+    rulingTitle += `Naval Mastery in ${targetNode.name}`;
+    rulingDispatch = `RULING FROM ${arbiter.name.toUpperCase()} (${season} ${year}): The battle squadrons of ${attackerFaction.type} gained the weather gage in ${targetNode.name}, delivering devastating broadsides that broke the enemy line. Defending squadrons under ${defenderFaction?.type ?? "hostile flags"} sustained heavy spar damage and ${defenderCasualties.toLocaleString()} naval casualties before falling back to port. The sea corridor is now secured by ${attackerFaction.type}.`;
+  } else if (outcome === "DISMASTED_WITHDRAWAL") {
+    rulingTitle += `Naval Repulse in ${targetNode.name}`;
+    rulingDispatch = `RULING FROM ${arbiter.name.toUpperCase()} (${season} ${year}): Heavy crossfire from entrenched shoreline batteries and defending warships repulsed ${attackerFaction.type} in ${targetNode.name}. The attacking van suffered ${attackerCasualties.toLocaleString()} casualties and rigging damage, forcing a withdrawal out of range.`;
+  } else if (outcome === "CONVOY_SCATTERED") {
+    rulingTitle += `Merchant Convoy Disrupted in ${targetNode.name}`;
+    rulingDispatch = `RULING FROM ${arbiter.name.toUpperCase()} (${season} ${year}): Aggressive privateering and cruiser action in ${targetNode.name} scattered enemy merchantmen, capturing prizes and severing naval supply lines.`;
+  } else {
+    rulingTitle += `Indecisive Fleet Action in ${targetNode.name}`;
+    rulingDispatch = `RULING FROM ${arbiter.name.toUpperCase()} (${season} ${year}): Long-range gunnery duels in ${targetNode.name} ended in a tactical draw amid shifting winds and dense powder smoke. Both fleets maintained formation with moderate rigging damage (${attackerCasualties.toLocaleString()} atk / ${defenderCasualties.toLocaleString()} def casualties).`;
+  }
+
+  await recordAndReconcileEvent({
+    gameId,
+    turn: turnNumber,
+    category: "ARBITER_RULING",
+    scope: EventScope.NODE,
+    primaryNodeId: targetNode.id,
+    factionIds: defenderFaction
+      ? [attackerFaction.id, defenderFaction.id]
+      : [attackerFaction.id],
+    title: rulingTitle,
+    description: rulingDispatch,
+    validUntilTurn: turnNumber + 2,
+  });
+
+  return {
+    outcome,
+    seaZoneSecured,
+    attackerCasualties,
+    defenderCasualties,
+    unrestDeltaAttacker: unrestAtk,
+    unrestDeltaDefender: unrestDef,
+    standingDeltaAttacker: standingAtk,
+    standingDeltaDefender: standingDef,
+    rulingTitle,
+    rulingDispatch,
+    arbiterName: arbiter.name,
+  };
+}

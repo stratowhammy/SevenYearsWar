@@ -116,8 +116,24 @@ export async function getRoleContextPayload(
         strength: u.strength,
         nodeId: u.nodeId,
         location: u.node.name,
-        adjacentNodeIds: u.node.adjacentNodeIds.slice(0, 3),
+        adjacentNodeIds: u.node.adjacentNodeIds.slice(0, 4),
+        adjacentNodes: u.node.adjacentNodeIds.slice(0, 4).map((adjId) => {
+          const adj = nodeLookup.get(adjId);
+          return {
+            id: adjId,
+            name: adj?.name ?? adjId,
+            nodeType: adj?.nodeType ?? "TERRESTRIAL",
+            owner: adj?.owner ?? "NEUTRAL",
+          };
+        }),
       })) ?? [],
+    mapNetwork: allNodes.map((n) => ({
+      id: n.id,
+      name: n.name,
+      nodeType: n.nodeType,
+      adjacentNodeIds: n.adjacentNodeIds,
+      owner: n.controller?.type ?? "NEUTRAL",
+    })),
     recentActiveEvents: activeEvents.map(
       (e) => `[Turn ${e.turnRecorded}] ${e.title}: ${e.description}`
     ),

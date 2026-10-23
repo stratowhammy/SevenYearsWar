@@ -16,6 +16,7 @@ export interface StoryArbiter {
     siegecraft: string;
     frontierWarfare: string;
     assemblyPolitics: string;
+    navalCombat?: string;
   };
 }
 
@@ -38,6 +39,7 @@ export const STORY_ARBITERS: StoryArbiter[] = [
       siegecraft: "Cautious: Requires established magazines and heavy artillery. Penalizes premature assaults with protracted sieges.",
       frontierWarfare: "Unfavorable to irregular rangers; insists on regular army line discipline.",
       assemblyPolitics: "Severe friction: Imposes trade embargoes and quarters troops forcefully if colonial assemblies balk at appropriations.",
+      navalCombat: "Relies on coastal transport convoys; cautious about committing vessels without shore artillery support.",
     },
   },
   {
@@ -58,6 +60,7 @@ export const STORY_ARBITERS: StoryArbiter[] = [
       siegecraft: "Decisive engineering: Bonus to formal siege breaches; refuses European Honours of War upon fortress surrender.",
       frontierWarfare: "Suppression doctrine: Cuts diplomatic gift subsidies to Native nations, sparking frontier unrest.",
       assemblyPolitics: "Rigid authority: Demands provincial troop quotas backed by Parliament's full financial credit.",
+      navalCombat: "Coordinates heavy siege batteries with fleet blockades to seal offshore relief channels.",
     },
   },
   {
@@ -78,6 +81,28 @@ export const STORY_ARBITERS: StoryArbiter[] = [
       siegecraft: "High-variance shock: Resolves contested assaults into either rapid decisive breakthrough or bloody amphibious repulse.",
       frontierWarfare: "Aggressive scorched-earth reprisals along the St. Lawrence shores.",
       assemblyPolitics: "Single-minded focus on immediate military victory, indifferent to civilian legislative nuance.",
+      navalCombat: "Bold riverine landings under Admiral Saunders' covering broadsides along the St. Lawrence.",
+    },
+  },
+  {
+    id: "arbiter-boscawen",
+    name: "Admiral Edward Boscawen ('Old Dreadnought')",
+    title: "Admiral of the Blue & Commander of the Royal Navy American Squadron",
+    historicalEra: "1758–1762 (Wooden Walls of England)",
+    activeFromTurn: 9,
+    activeUntilTurn: 28,
+    primaryFaction: FactionType.GREAT_BRITAIN,
+    avatarInitials: "EB",
+    theaterFocus: "Atlantic Shipping Lanes, Gabarus Bay & Gulf of St. Lawrence",
+    personalityDoctrine:
+      "Aggressive, intrepid naval commander. Boscawen believes in decisive line-of-battle action, close-range broadsides, and throttling enemy commerce through airtight blockades.",
+    narrativeVoice:
+      "Resolute, salty Admiralty dispatch detailing sail trim, broadside weight, and prizes captured.",
+    arbitrationBias: {
+      siegecraft: "Devastating ship-to-shore bombardments against seaward bastions.",
+      frontierWarfare: "Interdiction of enemy coastal schooners and privateers.",
+      assemblyPolitics: "Demands provincial timber, dockyard repairs, and sailor impressment.",
+      navalCombat: "Decisive naval superiority: Gains windward advantage and shatters enemy squadrons in fleet actions.",
     },
   },
   {
@@ -98,6 +123,28 @@ export const STORY_ARBITERS: StoryArbiter[] = [
       siegecraft: "Superior defensive abatis: Defending forces hold firm against 2:1 odds; readily grants Honours of War capitulations.",
       frontierWarfare: "Reluctance toward uncontrolled partisan raiding; seeks classical European battlefield decorum.",
       assemblyPolitics: "Deep rivalry with Canadian civil administration over grain monopolies and military supplies.",
+      navalCombat: "Relies on fortified harbor batteries and coastal shallows to fend off deep-draft warships.",
+    },
+  },
+  {
+    id: "arbiter-conflans",
+    name: "Hubert de Brienne, Comte de Conflans",
+    title: "Marshal of France & Vice-Admiral of the Marine Royale",
+    historicalEra: "1756–1761 (Bourbon Maritime Defense)",
+    activeFromTurn: 1,
+    activeUntilTurn: 22,
+    primaryFaction: FactionType.FRANCE,
+    avatarInitials: "HC",
+    theaterFocus: "Atlantic Shipping Lanes, Windward Passage & Gulf of Mexico",
+    personalityDoctrine:
+      "Gallant and strategic naval commander fighting against overwhelming British tonnage. Conflans focuses on convoy escort, breaking harbor blockades, and preserving capital ships through defensive gunnery.",
+    narrativeVoice:
+      "Chivalric and nautical French naval journal, recording evasive maneuvers, rigging damage, and colonial supply deliveries.",
+    arbitrationBias: {
+      siegecraft: "Harbor defense and naval gun placement on shore fortifications.",
+      frontierWarfare: "Commissions privateers to disrupt enemy colonial trade.",
+      assemblyPolitics: "Pushes Versailles for naval appropriations to rebuild Bourbon battlefleets.",
+      navalCombat: "Skillful convoy protection and long-range dismasting fire against pursuing squadrons.",
     },
   },
   {
@@ -118,6 +165,7 @@ export const STORY_ARBITERS: StoryArbiter[] = [
       siegecraft: "Avoids costly open-field engagements; favors scorched-earth retreats and interior defense.",
       frontierWarfare: "Maximum petite guerre synergy: High raid success rates and increased colonial frontier panic.",
       assemblyPolitics: "Autocratic colonial governance; manages Canadian militia and habitant grain rations directly.",
+      navalCombat: "Uses bateaux and shallow-draft gunboats to outmaneuver heavy British frigates on inland waterways.",
     },
   },
   {
@@ -138,6 +186,7 @@ export const STORY_ARBITERS: StoryArbiter[] = [
       siegecraft: "Mobilizes Haudenosaunee scout screens to cut fortress supply lines (e.g. Fort Niagara siege 1759).",
       frontierWarfare: "Stabilizing umpire: Mediates boundary friction and defuses retaliatory raids through wampum ceremonies.",
       assemblyPolitics: "Demands generous Crown trade goods and ammunition funds from skeptical colonial legislatures.",
+      navalCombat: "Organizes whaleboat and batteau flotillas for Lake George and Lake Ontario operations.",
     },
   },
   {
@@ -158,16 +207,38 @@ export const STORY_ARBITERS: StoryArbiter[] = [
       siegecraft: "Lethal forest containment: Starves isolated garrisons and overruns timber stockades with fire arrows.",
       frontierWarfare: "Devastating guerrilla ambushes: Inflicts heavy casualties on European supply wagons and marching columns.",
       assemblyPolitics: "Refuses European legal jurisdictions; demands full rollback of Anglo-American frontier settlements.",
+      navalCombat: "Canoe ambushes of European supply convoys at river narrows and portages.",
     },
   },
 ];
 
 export function selectActiveStoryArbiter(
   turnNumber: number,
-  category: "SIEGE" | "RAID" | "ASSEMBLY" | "DIPLOMACY" | "FOG_OF_WAR",
+  category: "SIEGE" | "RAID" | "ASSEMBLY" | "DIPLOMACY" | "FOG_OF_WAR" | "NAVAL",
   attackerFaction?: FactionType,
   defenderFaction?: FactionType
 ): StoryArbiter {
+  if (category === "NAVAL") {
+    if (attackerFaction === FactionType.GREAT_BRITAIN) {
+      return turnNumber >= 9
+        ? (STORY_ARBITERS.find((a) => a.id === "arbiter-boscawen") ??
+            STORY_ARBITERS[0])
+        : (STORY_ARBITERS.find((a) => a.id === "arbiter-conflans") ??
+            STORY_ARBITERS[0]);
+    }
+    if (attackerFaction === FactionType.FRANCE || defenderFaction === FactionType.FRANCE) {
+      return (
+        STORY_ARBITERS.find((a) => a.id === "arbiter-conflans") ??
+        STORY_ARBITERS.find((a) => a.id === "arbiter-boscawen") ??
+        STORY_ARBITERS[0]
+      );
+    }
+    return (
+      STORY_ARBITERS.find((a) => a.id === "arbiter-boscawen") ??
+      STORY_ARBITERS[0]
+    );
+  }
+
   if (category === "RAID" || category === "DIPLOMACY") {
     const isOhioContext =
       attackerFaction === FactionType.WESTERN_CONFEDERACY ||
