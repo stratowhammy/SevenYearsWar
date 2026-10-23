@@ -7,6 +7,7 @@ import {
   INITIAL_UNITS,
 } from "./seed-data";
 import { EventStatus, FactionType, Phase } from "@prisma/client";
+import { reconcileAndPersistVictoryPoints } from "@/engine/state-machine";
 
 export const DEFAULT_GAME_ID = "syw-1756-grand-campaign";
 
@@ -163,6 +164,9 @@ export async function seedCampaignGame(customGameId: string = DEFAULT_GAME_ID) {
       },
     ],
   });
+
+  // Calculate and persist initial baseline Victory Points across all 10 factions & 30 roles
+  await reconcileAndPersistVictoryPoints(game.id);
 
   return prisma.game.findUniqueOrThrow({
     where: { id: game.id },

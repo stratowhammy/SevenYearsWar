@@ -74,6 +74,7 @@ model Game {
   orders                Order[]
   dispatches            Dispatch[]
   offMapModifiers       Json
+  victoryPointsStandings Json?
   createdAt             DateTime    @default(now())
 }
 
@@ -87,6 +88,7 @@ model Faction {
   unrestIndex     Int           @default(0)
   standingPoints  Int           @default(3)
   assemblySupport Int           @default(50)
+  victoryPoints   Int           @default(0)
   covenantBoundaries String[]   @default([])
   roles           FactionRole[]
   nodesControlled MapNode[]
@@ -94,16 +96,18 @@ model Faction {
 }
 
 model FactionRole {
-  id                 String         @id @default(cuid())
-  factionId          String
-  faction            Faction        @relation(fields: [factionId], references: [id], onDelete: Cascade)
-  roleType           RoleType
-  title              String
-  controller         ControllerType @default(HUMAN)
-  botBehavior        BotBehavior    @default(NONE)
-  assignedUserId     String?
-  aiPersonaPrompt    String?
-  strategicObjective Json?
+  id                     String         @id @default(cuid())
+  factionId              String
+  faction                Faction        @relation(fields: [factionId], references: [id], onDelete: Cascade)
+  roleType               RoleType
+  title                  String
+  controller             ControllerType @default(HUMAN)
+  botBehavior            BotBehavior    @default(NONE)
+  assignedUserId         String?
+  aiPersonaPrompt        String?
+  strategicObjective     Json?
+  victoryPoints          Int            @default(0)
+  victoryPointsBreakdown Json?
 }
 
 model MapNode {

@@ -22,6 +22,10 @@ import {
   declareWarBetweenFactions,
 } from "./diplomacy";
 import { computeEdgeConstraint } from "@/components/map/map-geometry";
+import {
+  getCharacterRoleGuide,
+  evaluateCharacterObjectives,
+} from "@/lib/character-objectives";
 
 const PHASE_SEQUENCE: Phase[] = [
   Phase.INTEL_DISPATCH,
@@ -1048,6 +1052,9 @@ export async function processResolutionPhase(gameId: string) {
 
   await expireTurnEvents(gameId, nextTurn);
 
+  // Evaluate and persist Victory Points across all 10 factions & 30 character seats
+  const vpStandings = await reconcileAndPersistVictoryPoints(gameId);
+
   const updatedGame = await prisma.game.update({
     where: { id: gameId },
     data: {
@@ -1055,6 +1062,7 @@ export async function processResolutionPhase(gameId: string) {
       currentSeason: nextSeason,
       currentYear: nextYear,
       currentPhase: Phase.INTEL_DISPATCH,
+      victoryPointsStandings: vpStandings,
     },
   });
 
@@ -1064,6 +1072,7 @@ export async function processResolutionPhase(gameId: string) {
     executedOrdersCount: executedCount,
     combatLogs,
     game: updatedGame,
+    victoryPointsStandings: vpStandings,
   };
 }
 
@@ -1106,4 +1115,79 @@ export async function executeFullTurnCycle(gameId: string) {
     phaseResults: results,
     game: finalGame,
   };
+}
+
+/**
+ * Evaluates all 30 character role objectives, calculates victory points,
+ * and persists them directly into FactionRole.victoryPoints, Faction.victoryPoints,
+ * and Game.victoryPointsStandings
+ */
+export async function reconcileAndPersistVictoryPoints(gameId: string) {
+  const game = await prisma.game.findUniqueOrThrow({
+    where: { id: gameId },
+    include: {
+      factions: {
+        include: {
+          roles: true,
+          nodesControlled: true,
+          units: true,
+        },
+      },
+      nodes: true,
+      orders: true,
+      dispatches: true,
+      events: true,
+    },
+  });
+
+  const standings: Record<string, { factionVP: number; roles: Record<string, number> }> = {};
+
+  for (const faction of game.factions) {
+    let factionTotalVP = 0;
+    const roleScores: Record<string, number> = {};
+
+    for (const role of faction.roles) {
+      const guide = getCharacterRoleGuide(faction.type, role.roleType);
+      const evalResult = evaluateCharacterObjectives(guide, game, faction);
+
+      roleScores[role.roleType] = evalResult.earnedVP;
+      factionTotalVP += evalResult.earnedVP;
+
+      await prisma.factionRole.update({
+        where: { id: role.id },
+        data: {
+          victoryPoints: evalResult.earnedVP,
+          victoryPointsBreakdown: evalResult.evaluatedObjectives.map((obj) => ({
+            id: obj.id,
+            title: obj.title,
+            victoryPoints: obj.victoryPoints,
+            isCompleted: obj.isCompleted,
+            progressText: obj.progressText,
+            progressPercent: obj.progressPercent,
+          })),
+        },
+      });
+    }
+
+    await prisma.faction.update({
+      where: { id: faction.id },
+      data: {
+        victoryPoints: factionTotalVP,
+      },
+    });
+
+    standings[faction.type] = {
+      factionVP: factionTotalVP,
+      roles: roleScores,
+    };
+  }
+
+  await prisma.game.update({
+    where: { id: gameId },
+    data: {
+      victoryPointsStandings: standings,
+    },
+  });
+
+  return standings;
 }
