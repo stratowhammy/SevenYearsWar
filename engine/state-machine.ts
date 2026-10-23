@@ -26,6 +26,13 @@ import {
   getCharacterRoleGuide,
   evaluateCharacterObjectives,
 } from "@/lib/character-objectives";
+import {
+  STORY_ARBITERS,
+  selectActiveStoryArbiter,
+  arbitrateContestedAssault,
+  arbitrateFrontierRaid,
+  arbitrateAssemblyNegotiation,
+} from "@/engine/ai-arbiters/story-arbiters";
 
 const PHASE_SEQUENCE: Phase[] = [
   Phase.INTEL_DISPATCH,
@@ -619,13 +626,35 @@ export async function processResolutionPhase(gameId: string) {
                 where: { id: targetNode.controllingId },
               });
               if (targetFac) {
+                const raidRuling = await arbitrateFrontierRaid({
+                  gameId,
+                  turnNumber: game.turnNumber,
+                  season: game.currentSeason,
+                  year: game.currentYear,
+                  sourceNode,
+                  targetNode,
+                  raidingFaction: faction,
+                  targetFaction: targetFac,
+                });
+
+                await prisma.faction.update({
+                  where: { id: faction.id },
+                  data: {
+                    treasury: { increment: raidRuling.plunderTreasury },
+                  },
+                });
+
                 await prisma.faction.update({
                   where: { id: targetFac.id },
                   data: {
-                    treasury: Math.max(0, targetFac.treasury - 10),
-                    unrestIndex: clampUnrest(targetFac.unrestIndex + 4),
+                    treasury: Math.max(0, targetFac.treasury - raidRuling.plunderTreasury),
+                    unrestIndex: clampUnrest(targetFac.unrestIndex + raidRuling.unrestDeltaDefender),
                   },
                 });
+
+                combatLogs.push(
+                  `[Arbiter: ${raidRuling.arbiterName}] ${raidRuling.rulingTitle} -> ${raidRuling.outcome} (£${raidRuling.plunderTreasury} forage, +${raidRuling.unrestDeltaDefender}% unrest)`
+                );
               }
 
               // If previously NEUTRAL, a cross-border raid opens formal hostilities
@@ -639,18 +668,6 @@ export async function processResolutionPhase(gameId: string) {
                   factionIds: [faction.id, targetNode.controllingId],
                   title: `Hostilities Opened at ${targetNode.name}`,
                   description: `${faction.type} frontier raids on ${targetNode.name} provoked open warfare with ${targetController?.type}.`,
-                });
-              } else {
-                await recordAndReconcileEvent({
-                  gameId,
-                  turn: game.turnNumber,
-                  category: "MILITARY",
-                  scope: EventScope.NODE,
-                  primaryNodeId: targetNode.id,
-                  factionIds: [faction.id, targetNode.controllingId],
-                  title: `Frontier Raid on ${targetNode.name}`,
-                  description: `${faction.type} raiding parties struck supply depots around ${targetNode.name}.`,
-                  validUntilTurn: game.turnNumber + 3,
                 });
               }
             }
@@ -709,11 +726,33 @@ export async function processResolutionPhase(gameId: string) {
                 0
               );
 
-              if (defensePower === 0 || attackPower > defensePower) {
+              const assaultRuling = await arbitrateContestedAssault({
+                gameId,
+                turnNumber: game.turnNumber,
+                season: game.currentSeason,
+                year: game.currentYear,
+                targetNode,
+                attackerFaction: faction,
+                defenderFaction: targetController,
+                movingUnits,
+                defenderUnits,
+                baseAttackPower: attackPower,
+                baseDefensePower: defensePower,
+                isAmphibious: false,
+              });
+
+              combatLogs.push(
+                `[Arbiter: ${assaultRuling.arbiterName}] ${assaultRuling.rulingTitle} -> ${assaultRuling.outcome} (${assaultRuling.attackerCasualties} atk / ${assaultRuling.defenderCasualties} def casualties)`
+              );
+
+              if (assaultRuling.nodeCaptured) {
                 const previousOwnerId = targetNode.controllingId;
 
                 for (const defUnit of defenderUnits) {
-                  const surviving = Math.floor(defUnit.strength * 0.55);
+                  const lossShare = Math.floor(
+                    assaultRuling.defenderCasualties / Math.max(1, defenderUnits.length)
+                  );
+                  const surviving = Math.max(0, defUnit.strength - lossShare);
                   if (surviving < 150) {
                     await prisma.unit.delete({ where: { id: defUnit.id } });
                   } else {
@@ -725,13 +764,16 @@ export async function processResolutionPhase(gameId: string) {
                 }
 
                 for (const atkUnit of movingUnits) {
+                  const lossShare = Math.floor(
+                    assaultRuling.attackerCasualties / Math.max(1, movingUnits.length)
+                  );
                   await prisma.unit.update({
                     where: { id: atkUnit.id },
                     data: {
                       nodeId: targetNode.id,
                       strength: Math.max(
                         150,
-                        Math.floor(atkUnit.strength * 0.88)
+                        atkUnit.strength - lossShare
                       ),
                     },
                   });
@@ -764,19 +806,79 @@ export async function processResolutionPhase(gameId: string) {
                 }
               } else {
                 for (const atkUnit of movingUnits) {
+                  const lossShare = Math.floor(
+                    assaultRuling.attackerCasualties / Math.max(1, movingUnits.length)
+                  );
                   await prisma.unit.update({
                     where: { id: atkUnit.id },
                     data: {
                       strength: Math.max(
                         150,
-                        Math.floor(atkUnit.strength * 0.78)
+                        atkUnit.strength - lossShare
+                      ),
+                    },
+                  });
+                }
+                for (const defUnit of defenderUnits) {
+                  const lossShare = Math.floor(
+                    assaultRuling.defenderCasualties / Math.max(1, defenderUnits.length)
+                  );
+                  await prisma.unit.update({
+                    where: { id: defUnit.id },
+                    data: {
+                      strength: Math.max(
+                        150,
+                        defUnit.strength - lossShare
                       ),
                     },
                   });
                 }
                 combatLogs.push(
-                  `Assault on ${targetNode.name} by ${faction.type} was repulsed`
+                  `Assault on ${targetNode.name} by ${faction.type}: ${assaultRuling.outcome}`
                 );
+              }
+
+              // Apply Unrest and Standing Deltas from Arbiter Ruling
+              if (assaultRuling.unrestDeltaAttacker !== 0) {
+                await prisma.faction.update({
+                  where: { id: faction.id },
+                  data: {
+                    unrestIndex: clampUnrest(
+                      faction.unrestIndex + assaultRuling.unrestDeltaAttacker
+                    ),
+                  },
+                });
+              }
+              if (targetController && assaultRuling.unrestDeltaDefender !== 0) {
+                await prisma.faction.update({
+                  where: { id: targetController.id },
+                  data: {
+                    unrestIndex: clampUnrest(
+                      targetController.unrestIndex + assaultRuling.unrestDeltaDefender
+                    ),
+                  },
+                });
+              }
+              if (assaultRuling.standingDeltaAttacker !== 0) {
+                await prisma.faction.update({
+                  where: { id: faction.id },
+                  data: {
+                    standingPoints: clampStanding(
+                      faction.standingPoints + assaultRuling.standingDeltaAttacker
+                    ),
+                  },
+                });
+              }
+              if (targetController && assaultRuling.standingDeltaDefender !== 0) {
+                await prisma.faction.update({
+                  where: { id: targetController.id },
+                  data: {
+                    standingPoints: clampStanding(
+                      targetController.standingPoints +
+                        assaultRuling.standingDeltaDefender
+                    ),
+                  },
+                });
               }
             }
           }
@@ -896,17 +998,39 @@ export async function processResolutionPhase(gameId: string) {
               0
             );
 
-            if (defensePower === 0 || attackPower > defensePower) {
+            const assaultRuling = await arbitrateContestedAssault({
+              gameId,
+              turnNumber: game.turnNumber,
+              season: game.currentSeason,
+              year: game.currentYear,
+              targetNode,
+              attackerFaction: faction,
+              defenderFaction: targetNode.controller,
+              movingUnits: candidateLandUnits,
+              defenderUnits,
+              baseAttackPower: attackPower,
+              baseDefensePower: defensePower,
+              isAmphibious: true,
+            });
+
+            combatLogs.push(
+              `[Arbiter: ${assaultRuling.arbiterName}] ${assaultRuling.rulingTitle} -> ${assaultRuling.outcome} (${assaultRuling.attackerCasualties} atk / ${assaultRuling.defenderCasualties} def casualties)`
+            );
+
+            if (assaultRuling.nodeCaptured) {
               const previousOwnerId = targetNode.controllingId;
               for (const defUnit of defenderUnits) {
                 await prisma.unit.delete({ where: { id: defUnit.id } });
               }
               for (const atkUnit of candidateLandUnits) {
+                const lossShare = Math.floor(
+                  assaultRuling.attackerCasualties / Math.max(1, candidateLandUnits.length)
+                );
                 await prisma.unit.update({
                   where: { id: atkUnit.id },
                   data: {
                     nodeId: targetNode.id,
-                    strength: Math.max(150, Math.floor(atkUnit.strength * 0.9)),
+                    strength: Math.max(150, atkUnit.strength - lossShare),
                   },
                 });
               }
@@ -922,7 +1046,7 @@ export async function processResolutionPhase(gameId: string) {
                 await recordAndReconcileEvent({
                   gameId,
                   turn: game.turnNumber,
-                  category: "MILITARY",
+                  category: "FORT_CAPTURED",
                   scope: EventScope.NODE,
                   primaryNodeId: targetNode.id,
                   factionIds: [faction.id, previousOwnerId],
@@ -931,6 +1055,17 @@ export async function processResolutionPhase(gameId: string) {
                 });
               }
             } else {
+              for (const atkUnit of candidateLandUnits) {
+                const lossShare = Math.floor(
+                  assaultRuling.attackerCasualties / Math.max(1, candidateLandUnits.length)
+                );
+                await prisma.unit.update({
+                  where: { id: atkUnit.id },
+                  data: {
+                    strength: Math.max(150, atkUnit.strength - lossShare),
+                  },
+                });
+              }
               combatLogs.push(
                 `Amphibious assault on ${targetNode.name} by ${faction.type} was repulsed`
               );
@@ -955,27 +1090,37 @@ export async function processResolutionPhase(gameId: string) {
         );
       }
     } else if (order.orderType === "ASSEMBLY_NEGOTIATION") {
+      const assemblyRuling = await arbitrateAssemblyNegotiation({
+        gameId,
+        turnNumber: game.turnNumber,
+        season: game.currentSeason,
+        year: game.currentYear,
+        faction,
+        allocatedSpend: actualSpend,
+      });
+
+      await prisma.faction.update({
+        where: { id: faction.id },
+        data: {
+          treasury: { increment: assemblyRuling.treasuryGained },
+          unrestIndex: clampUnrest(faction.unrestIndex + assemblyRuling.unrestDelta),
+          assemblySupport: Math.min(
+            100,
+            Math.max(
+              0,
+              (faction.assemblySupport ?? 50) + assemblyRuling.assemblySupportDelta
+            )
+          ),
+        },
+      });
+
       if (actualSpend > 0) {
-        await prisma.faction.update({
-          where: { id: faction.id },
-          data: {
-            unrestIndex: clampUnrest(faction.unrestIndex - 10),
-            assemblySupport: Math.min(100, (faction.assemblySupport ?? 50) + 15),
-          },
-        });
         combatLogs.push(
-          `[Assembly Negotiation] ${faction.type} granted patronages to colonial assembly (-10% unrest, +15 assembly support).`
+          `[Assembly Negotiation] ${faction.type} granted patronages to colonial assembly (-10% unrest, +15 assembly support). [Arbiter: ${assemblyRuling.arbiterName}] ${assemblyRuling.rulingTitle}`
         );
       } else {
-        await prisma.faction.update({
-          where: { id: faction.id },
-          data: {
-            treasury: { increment: 40 },
-            unrestIndex: clampUnrest(faction.unrestIndex + 5),
-          },
-        });
         combatLogs.push(
-          `[Assembly Negotiation] ${faction.type} secured 40 £ emergency supply credits from provincial assembly (+5% unrest).`
+          `[Assembly Negotiation] ${faction.type} secured 40 £ emergency supply credits from provincial assembly (+5% unrest). [Arbiter: ${assemblyRuling.arbiterName}] ${assemblyRuling.rulingTitle}`
         );
       }
     } else if (order.orderType === "TREATY_CONFERENCE") {

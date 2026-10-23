@@ -51,12 +51,17 @@ import {
   Circle,
   Sun,
   Moon,
+  Scale,
 } from "lucide-react";
 import DashboardTourGuide from "@/components/dashboard/DashboardTourGuide";
 import {
   getCharacterRoleGuide,
   evaluateCharacterObjectives,
 } from "@/lib/character-objectives";
+import {
+  STORY_ARBITERS,
+  selectActiveStoryArbiter,
+} from "@/lib/story-arbiters-data";
 
 const DynamicMapViewer = dynamic(
   () => import("@/components/map/MapViewer"),
@@ -293,6 +298,15 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
     }
     return Array.from(new Set(ids));
   }, [game.factions]);
+
+  const currentArbiter = useMemo(() => {
+    return selectActiveStoryArbiter(
+      game.turnNumber,
+      "SIEGE",
+      activeFaction?.type,
+      undefined
+    );
+  }, [game.turnNumber, activeFaction?.type]);
 
   // Courier dispatch form state
   const [dispatchTargetFactionId, setDispatchTargetFactionId] =
@@ -1843,6 +1857,111 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                     )}
                   </div>
                 )}
+
+                {/* Historical AI Story Arbiters Section */}
+                <div className="mt-4 pt-3.5 border-t border-amber-900/20 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-serif font-bold text-xs uppercase tracking-wide text-red-950">
+                      <Scale className="w-4 h-4 text-amber-700" />
+                      Historical AI Story Arbiters (1756–1763)
+                    </div>
+                    <span className="text-[10px] font-mono bg-amber-200 text-amber-900 px-2 py-0.5 rounded font-bold border border-amber-400">
+                      Turn {game.turnNumber} Arbiter: {currentArbiter.name.split(",")[0]}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-700 leading-relaxed">
+                    Contested operations with ambiguity (siege assaults within 0.55–2.5× force ratios, frontier raids, and assembly appropriations) are adjudicated by historical Story Arbiters using probabilistic dice rolls and doctrinal biases.
+                  </p>
+
+                  {/* Active Presiding Arbiter Spotlight Card */}
+                  <div className="bg-gradient-to-br from-amber-50 to-[#faf5e6] border-2 border-amber-600/70 rounded-xl p-3 shadow-xs space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <div className="w-9 h-9 rounded-full bg-amber-800 text-amber-100 flex items-center justify-center font-serif font-bold text-sm shadow-xs border border-amber-400">
+                          {currentArbiter.avatarInitials}
+                        </div>
+                        <div>
+                          <div className="font-serif font-bold text-xs text-amber-950">
+                            {currentArbiter.name}
+                          </div>
+                          <div className="text-[10px] text-amber-900/80 font-mono">
+                            {currentArbiter.title}
+                          </div>
+                        </div>
+                      </div>
+                      <span className="text-[9px] font-mono px-2 py-0.5 rounded-full bg-amber-200/90 text-amber-900 font-bold border border-amber-400 shrink-0">
+                        Era: {currentArbiter.historicalEra}
+                      </span>
+                    </div>
+
+                    <div className="text-[11px] text-slate-800 italic bg-amber-100/60 p-2 rounded-lg border border-amber-300/60">
+                      &ldquo;{currentArbiter.personalityDoctrine}&rdquo;
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5 text-[10px]">
+                      <div className="bg-white/80 p-1.5 rounded border border-amber-300/40">
+                        <span className="font-mono font-bold text-amber-900 block">Siege Doctrine:</span>
+                        <span className="text-slate-700">{currentArbiter.arbitrationBias.siegecraft}</span>
+                      </div>
+                      <div className="bg-white/80 p-1.5 rounded border border-amber-300/40">
+                        <span className="font-mono font-bold text-amber-900 block">Frontier Bias:</span>
+                        <span className="text-slate-700">{currentArbiter.arbitrationBias.frontierWarfare}</span>
+                      </div>
+                      <div className="bg-white/80 p-1.5 rounded border border-amber-300/40">
+                        <span className="font-mono font-bold text-amber-900 block">Assembly Friction:</span>
+                        <span className="text-slate-700">{currentArbiter.arbitrationBias.assemblyPolitics}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Roster of 7 Historical Arbiters */}
+                  <div className="space-y-1.5">
+                    <div className="font-mono text-[10px] uppercase tracking-wider font-bold text-slate-700 flex items-center justify-between">
+                      <span>High Command Arbiter Roster</span>
+                      <span className="text-slate-500 font-normal">7 Historical Umpires</span>
+                    </div>
+                    <div className="grid grid-cols-1 gap-1.5 max-h-48 overflow-y-auto pr-1">
+                      {STORY_ARBITERS.map((arb) => {
+                        const isCurrent = arb.id === currentArbiter.id;
+                        return (
+                          <div
+                            key={arb.id}
+                            className={`p-2 rounded-lg border flex items-center justify-between gap-2 text-[11px] ${
+                              isCurrent
+                                ? "bg-amber-100/90 border-amber-500 font-medium text-amber-950"
+                                : "bg-slate-50/80 border-slate-200 text-slate-700"
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span
+                                className={`w-6 h-6 rounded-full flex items-center justify-center font-bold font-serif text-[10px] shrink-0 ${
+                                  isCurrent
+                                    ? "bg-amber-700 text-white"
+                                    : "bg-slate-200 text-slate-800"
+                                }`}
+                              >
+                                {arb.avatarInitials}
+                              </span>
+                              <div className="truncate">
+                                <span className="font-semibold block truncate">
+                                  {arb.name}
+                                </span>
+                                <span className="text-[10px] opacity-75 font-mono block truncate">
+                                  {arb.theaterFocus}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-slate-200/80 text-slate-800">
+                                Turns {arb.activeFromTurn}–{arb.activeUntilTurn}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -1975,41 +2094,66 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                 <div className="space-y-2 max-h-96 overflow-y-auto pr-1">
                   {game.events?.map((ev: any) => {
                     const isActive = ev.status === EventStatus.ACTIVE;
+                    const isArbiterRuling = ev.category === "ARBITER_RULING";
                     return (
                       <div
                         key={ev.id}
-                        className={`p-3 rounded-xl border ${
-                          isActive
+                        className={`p-3 rounded-xl border transition-all ${
+                          isArbiterRuling
+                            ? "bg-gradient-to-br from-amber-50 via-[#fdfbf3] to-yellow-50 border-amber-600/70 shadow-sm text-slate-900"
+                            : isActive
                             ? "bg-[#fffdf9] border-amber-900/30 text-slate-900 shadow-xs"
                             : "bg-slate-200/60 border-slate-400/50 text-slate-600 opacity-70"
                         }`}
                       >
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-serif font-bold">
-                            [Turn {ev.turnRecorded}] {ev.title}
-                          </span>
-                          <span
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
-                              ev.status === EventStatus.ACTIVE
-                                ? "bg-emerald-100 text-emerald-900 border border-emerald-600"
-                                : ev.status === EventStatus.SUPERSEDED
-                                ? "bg-purple-100 text-purple-900 border border-purple-600"
-                                : "bg-slate-200 text-slate-700"
-                            }`}
-                          >
-                            {ev.status === EventStatus.ACTIVE ? (
-                              <CheckCircle2 className="w-3 h-3" />
-                            ) : ev.status === EventStatus.SUPERSEDED ? (
-                              <XCircle className="w-3 h-3" />
-                            ) : (
-                              <Clock className="w-3 h-3" />
+                          <div className="flex items-center gap-1.5 font-serif font-bold text-slate-950">
+                            {isArbiterRuling && (
+                              <Scale className="w-4 h-4 text-amber-700 shrink-0" />
                             )}
-                            {ev.status}
-                          </span>
+                            <span>
+                              [Turn {ev.turnRecorded}] {ev.title}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            {isArbiterRuling && (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-amber-200/90 text-amber-950 border border-amber-500">
+                                <Sparkles className="w-2.5 h-2.5 text-amber-700" /> Arbiter Decree
+                              </span>
+                            )}
+                            <span
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-bold ${
+                                ev.status === EventStatus.ACTIVE
+                                  ? "bg-emerald-100 text-emerald-900 border border-emerald-600"
+                                  : ev.status === EventStatus.SUPERSEDED
+                                  ? "bg-purple-100 text-purple-900 border border-purple-600"
+                                  : "bg-slate-200 text-slate-700"
+                              }`}
+                            >
+                              {ev.status === EventStatus.ACTIVE ? (
+                                <CheckCircle2 className="w-3 h-3" />
+                              ) : ev.status === EventStatus.SUPERSEDED ? (
+                                <XCircle className="w-3 h-3" />
+                              ) : (
+                                <Clock className="w-3 h-3" />
+                              )}
+                              {ev.status}
+                            </span>
+                          </div>
                         </div>
-                        <p className="mt-1 opacity-85">{ev.description}</p>
+                        <p
+                          className={`mt-1.5 ${
+                            isArbiterRuling
+                              ? "font-serif text-slate-900 italic border-l-2 border-amber-600/70 pl-2.5 py-0.5 text-xs leading-relaxed"
+                              : "opacity-85 text-xs"
+                          }`}
+                        >
+                          {ev.description}
+                        </p>
                         <div className="flex items-center gap-3 mt-1.5 text-[10px] font-mono opacity-70">
-                          <span>Category: {ev.category}</span>
+                          <span className={isArbiterRuling ? "font-bold text-amber-900" : ""}>
+                            Category: {ev.category}
+                          </span>
                           <span>Scope: {ev.scope}</span>
                           {ev.validUntilTurn && (
                             <span>Valid Until Turn: {ev.validUntilTurn}</span>
