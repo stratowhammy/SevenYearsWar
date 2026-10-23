@@ -1298,10 +1298,12 @@ export default function WarRoomClient({ initialGame }: WarRoomClientProps) {
                             className={
                               obj.isCompleted
                                 ? "syw-vp-badge-completed"
+                                : ((obj as any).earnedVP ?? 0) > 0
+                                ? "syw-vp-badge-completed bg-amber-500/20 text-amber-900 border-amber-600/40"
                                 : "syw-vp-badge"
                             }
                           >
-                            +{obj.victoryPoints} VP
+                            +{((obj as any).earnedVP !== undefined ? (obj as any).earnedVP : (obj.isCompleted ? obj.victoryPoints : 0))} / {obj.victoryPoints} VP
                           </span>
                         </div>
                       </div>

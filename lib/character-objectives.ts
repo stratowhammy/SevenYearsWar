@@ -11,6 +11,7 @@ export interface CharacterObjectiveDefinition {
     isCompleted: boolean;
     progressText: string;
     progressPercent: number;
+    earnedVP?: number;
   };
 }
 
@@ -39,21 +40,25 @@ function hasNodeControl(ctx: ObjectiveEvalContext, nodeNameSubstrings: string[])
   controlledCount: number;
   totalRequired: number;
   allControlled: boolean;
+  controlledList: string[];
 } {
   const controlledNames: string[] = (ctx.faction?.nodesControlled ?? []).map((n: any) =>
     (n.name ?? "").toLowerCase()
   );
   let count = 0;
+  const list: string[] = [];
   for (const target of nodeNameSubstrings) {
     const tLower = target.toLowerCase();
     if (controlledNames.some((cn) => cn.includes(tLower))) {
       count++;
+      list.push(target);
     }
   }
   return {
     controlledCount: count,
     totalRequired: nodeNameSubstrings.length,
     allControlled: count >= nodeNameSubstrings.length,
+    controlledList: list,
   };
 }
 
@@ -90,56 +95,63 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         id: "gb-exec-1",
         title: "Conquest of Canada (Louisbourg & Quebec)",
         description:
-          "Shatter French imperial power in North America by capturing both Fortress Louisbourg and the Citadel of Quebec.",
+          "Shatter French imperial power in North America by capturing Fortress Louisbourg or the Citadel of Quebec (or both).",
         howToComplete:
           "Coordinate with your Military Commander to issue AMPHIBIOUS_ASSAULT and MOVE directives against Fortress Louisbourg and Quebec.",
         victoryPoints: 5,
         category: "TERRITORIAL",
         evaluate: (ctx) => {
           const res = hasNodeControl(ctx, ["Louisbourg", "Quebec"]);
+          const pts = res.allControlled ? 5 : res.controlledCount >= 1 ? 3 : 0;
           return {
             isCompleted: res.allControlled,
-            progressText: `${res.controlledCount} / ${res.totalRequired} Citadels Captured`,
+            earnedVP: pts,
+            progressText: `${res.controlledCount} / ${res.totalRequired} Citadels Captured (+${pts}/5 VP)`,
             progressPercent: Math.round((res.controlledCount / res.totalRequired) * 100),
           };
         },
       },
       {
         id: "gb-exec-2",
-        title: "Colonial Assembly Supply Consensus",
+        title: "Colonial Assembly Supply & Backcountry Order",
         description:
-          "Maintain Colonial Assembly Support at 65% or higher while keeping domestic Unrest at or below 20%.",
+          "Maintain Colonial Assembly Support at 60% or higher while keeping domestic Unrest at or below 45%.",
         howToComplete:
-          "Select Boston or Philadelphia and submit ASSEMBLY_NEGOTIATION orders in the Economy & Governance matrix.",
+          "Select Boston or Port Royal and submit ASSEMBLY_NEGOTIATION orders in the Economy & Governance matrix.",
         victoryPoints: 3,
         category: "SOVEREIGNTY",
         evaluate: (ctx) => {
           const support = ctx.faction?.assemblySupport ?? 50;
           const unrest = ctx.faction?.unrestIndex ?? 0;
-          const done = support >= 65 && unrest <= 20;
-          const pct = Math.min(100, Math.round((support / 65) * 100));
+          const full = support >= 60 && unrest <= 45;
+          const partial = support >= 55 || unrest <= 50;
+          const pts = full ? 3 : partial ? 1 : 0;
           return {
-            isCompleted: done,
-            progressText: `Assembly: ${support}% (≥65%) • Unrest: ${unrest}% (≤20%)`,
-            progressPercent: done ? 100 : pct,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Assembly: ${support}% (≥60%) • Unrest: ${unrest}% (≤45%)`,
+            progressPercent: full ? 100 : Math.min(90, Math.round((support / 60) * 80)),
           };
         },
       },
       {
         id: "gb-exec-3",
-        title: "Imperial Hegemony (7+ Controlled Nodes)",
+        title: "Imperial Hegemony (6+ Controlled Nodes)",
         description:
-          "Expand British territorial sovereignty to control at least 7 theater nodes across the map.",
+          "Expand British territorial sovereignty to control at least 6 theater nodes across North America and the Atlantic.",
         howToComplete:
-          "Capture contested forts (Fort Duquesne, Fort Niagara, Fort Ticonderoga) while defending Boston, Oswego, and Port Royal.",
+          "Capture contested forts (Fort Duquesne, Fort Niagara, Fort Ticonderoga) while defending Boston, Fort Oswego, and Port Royal.",
         victoryPoints: 2,
         category: "TERRITORIAL",
         evaluate: (ctx) => {
           const count = ctx.faction?.nodesControlled?.length ?? 0;
+          const full = count >= 6;
+          const pts = full ? 2 : count >= 5 ? 1 : 0;
           return {
-            isCompleted: count >= 7,
-            progressText: `${count} / 7 Nodes Controlled`,
-            progressPercent: Math.min(100, Math.round((count / 7) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 6 Nodes Controlled`,
+            progressPercent: Math.min(100, Math.round((count / 6) * 100)),
           };
         },
       },
@@ -161,35 +173,40 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         id: "gb-mil-1",
         title: "Secure the Forks of the Ohio & Niagara",
         description:
-          "Wrest control of Fort Duquesne and Fort Niagara from France to sever their Great Lakes supply line.",
+          "Wrest control of Fort Duquesne or Fort Niagara (or both) from France to sever their Great Lakes supply line.",
         howToComplete:
           "Muster forces at Fort Oswego and Philadelphia, then issue MOVE orders to assault Fort Niagara and Fort Duquesne.",
         victoryPoints: 4,
         category: "MILITARY",
         evaluate: (ctx) => {
           const res = hasNodeControl(ctx, ["Duquesne", "Niagara"]);
+          const pts = res.allControlled ? 4 : res.controlledCount >= 1 ? 2 : 0;
           return {
             isCompleted: res.allControlled,
-            progressText: `${res.controlledCount} / 2 Frontier Forts Secured`,
+            earnedVP: pts,
+            progressText: `${res.controlledCount} / 2 Frontier Forts Secured (+${pts}/4 VP)`,
             progressPercent: Math.round((res.controlledCount / 2) * 100),
           };
         },
       },
       {
         id: "gb-mil-2",
-        title: "Muster the Grand Expeditionary Army (5,500+ Strength)",
+        title: "Muster the Grand Expeditionary Army (5,000+ Strength)",
         description:
-          "Build total British regular, naval, and provincial troop strength across the theater to at least 5,500 men.",
+          "Build total British regular, naval, and provincial troop strength across the theater to at least 5,000 men.",
         howToComplete:
           "Issue RECRUIT (Muster Troops) orders at Boston, Port Royal, or Fort Oswego during the Order Submission phase.",
         victoryPoints: 3,
         category: "MILITARY",
         evaluate: (ctx) => {
           const str = getTotalStrength(ctx);
+          const full = str >= 5000;
+          const pts = full ? 3 : str >= 3800 ? 1 : 0;
           return {
-            isCompleted: str >= 5500,
-            progressText: `${str.toLocaleString()} / 5,500 Total Strength`,
-            progressPercent: Math.min(100, Math.round((str / 5500) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${str.toLocaleString()} / 5,000 Total Strength`,
+            progressPercent: Math.min(100, Math.round((str / 5000) * 100)),
           };
         },
       },
@@ -197,17 +214,28 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         id: "gb-mil-3",
         title: "Rule Britannia: Command the Sea Lanes",
         description:
-          "Hold both the Atlantic Shipping Lanes and the Gulf of St. Lawrence simultaneously to throttle French reinforcements.",
+          "Dominate North American waters by holding Atlantic Shipping Lanes and projecting naval power into the Gulf of St. Lawrence.",
         howToComplete:
           "Use AMPHIBIOUS_ASSAULT or naval MOVE orders from Atlantic Shipping Lanes into the Gulf of St. Lawrence.",
         victoryPoints: 3,
         category: "MILITARY",
         evaluate: (ctx) => {
           const res = hasNodeControl(ctx, ["Atlantic Shipping Lanes", "Gulf of St. Lawrence"]);
+          const hasAtlantic = hasNodeControl(ctx, ["Atlantic Shipping Lanes"]).allControlled;
+          const navalOrders = countOrdersOfType(ctx, ["AMPHIBIOUS_ASSAULT", "MOVE"]);
+          let pts = 0;
+          if (res.allControlled) {
+            pts = 3;
+          } else if (hasAtlantic && navalOrders >= 2) {
+            pts = 2;
+          } else if (hasAtlantic) {
+            pts = 1;
+          }
           return {
             isCompleted: res.allControlled,
-            progressText: `${res.controlledCount} / 2 Strategic Sea Zones Held`,
-            progressPercent: Math.round((res.controlledCount / 2) * 100),
+            earnedVP: pts,
+            progressText: `${res.controlledCount} / 2 Sea Zones Held (+${pts}/3 VP)`,
+            progressPercent: res.allControlled ? 100 : hasAtlantic ? 66 : 0,
           };
         },
       },
@@ -237,47 +265,58 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const covs = ctx.faction?.covenantBoundaries?.length ?? 0;
           const subs = countOrdersOfType(ctx, ["SUBSIDIZE", "COVENANT_BOUNDARY"]);
-          const done = covs >= 1 && subs >= 2;
+          const full = covs >= 1 && subs >= 2;
+          const partial = covs >= 1 || subs >= 1;
+          const pts = full ? 4 : partial ? 2 : 0;
           return {
-            isCompleted: done,
-            progressText: `${covs} Covenant(s) • ${subs}/2 Diplomatic Orders`,
-            progressPercent: Math.min(100, Math.round(((Math.min(1, covs) + Math.min(2, subs)) / 3) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${covs} Covenant(s) • ${subs}/2 Diplomatic Orders (+${pts}/4 VP)`,
+            progressPercent: full ? 100 : partial ? 60 : 0,
           };
         },
       },
       {
         id: "gb-dip-2",
-        title: "Mercantilist War Chest (£280+ Treasury)",
+        title: "Mercantilist War Finance & Maritime Trade",
         description:
-          "Accumulate at least £280 in the British Imperial Treasury through Caribbean sugar convoys and North American timber extraction.",
+          "Maintain positive British Treasury reserves (≥£130, or ≥£70 with 2+ trade directives) while funding colonial expeditions.",
         howToComplete:
           "Issue EXTRACT and TRADE orders at Port Royal / Kingston and Boston.",
         victoryPoints: 3,
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const t = ctx.faction?.treasury ?? 0;
+          const trades = countOrdersOfType(ctx, ["EXTRACT", "TRADE"]);
+          const full = t >= 130 || (t >= 70 && trades >= 2);
+          const partial = t >= 50 && trades >= 1;
+          const pts = full ? 3 : partial ? 1 : 0;
           return {
-            isCompleted: t >= 280,
-            progressText: `£${t} / £280 Treasury Reserve`,
-            progressPercent: Math.min(100, Math.round((t / 280) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `£${t} Treasury • ${trades} Trade/Extract Orders (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : Math.min(90, Math.round((t / 130) * 100)),
           };
         },
       },
       {
         id: "gb-dip-3",
-        title: "Prestige of the Crown (7+ Standing Points)",
+        title: "Prestige of the Crown (6+ Standing Points)",
         description:
-          "Elevate Great Britain's international Standing Points to 7 or higher through treaty adherence and strategic victories.",
+          "Elevate Great Britain's international Standing Points to 6 or higher through treaty adherence and strategic victories.",
         howToComplete:
           "Honor covenant boundaries, fulfill role campaign objectives, and avoid unprovoked attacks on neutral powers.",
         victoryPoints: 3,
         category: "DIPLOMATIC",
         evaluate: (ctx) => {
           const pts = ctx.faction?.standingPoints ?? 0;
+          const full = pts >= 6;
+          const earned = full ? 3 : pts >= 5 ? 1 : 0;
           return {
-            isCompleted: pts >= 7,
-            progressText: `${pts} / 7 Standing Points`,
-            progressPercent: Math.min(100, Math.round((pts / 7) * 100)),
+            isCompleted: full,
+            earnedVP: earned,
+            progressText: `${pts} / 6 Standing Points (+${earned}/3 VP)`,
+            progressPercent: Math.min(100, Math.round((pts / 6) * 100)),
           };
         },
       },
@@ -303,16 +342,18 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         id: "fr-exec-1",
         title: "Inviolable St. Lawrence Heartland",
         description:
-          "Retain unbroken French sovereignty over Quebec, Fortress Louisbourg, and Fort Ticonderoga simultaneously.",
+          "Retain unbroken French sovereignty over Quebec, Fortress Louisbourg, and Fort Ticonderoga.",
         howToComplete:
           "Reinforce garrisons at Quebec, Louisbourg, and Ticonderoga and repel British amphibious or overland expeditions.",
         victoryPoints: 4,
         category: "TERRITORIAL",
         evaluate: (ctx) => {
           const res = hasNodeControl(ctx, ["Quebec", "Louisbourg", "Ticonderoga"]);
+          const pts = res.allControlled ? 4 : res.controlledCount >= 2 ? 2 : res.controlledCount >= 1 ? 1 : 0;
           return {
             isCompleted: res.allControlled,
-            progressText: `${res.controlledCount} / 3 Heartland Bastions Held`,
+            earnedVP: pts,
+            progressText: `${res.controlledCount} / 3 Heartland Bastions Held (+${pts}/4 VP)`,
             progressPercent: Math.round((res.controlledCount / 3) * 100),
           };
         },
@@ -328,28 +369,34 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "DIPLOMATIC",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["SUBSIDIZE"]) + (ctx.factionDispatches?.length ?? 0);
+          const full = count >= 3;
+          const pts = full ? 3 : count >= 1 ? 1 : 0;
           return {
-            isCompleted: count >= 3,
-            progressText: `${count} / 3 Alliance Subsidies & Dispatches`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 3 Alliance Subsidies & Dispatches (+${pts}/3 VP)`,
             progressPercent: Math.min(100, Math.round((count / 3) * 100)),
           };
         },
       },
       {
         id: "fr-exec-3",
-        title: "Master of New France (8+ Controlled Nodes)",
+        title: "Master of New France (7+ Controlled Nodes)",
         description:
-          "Expand French territorial control across the St. Lawrence, Great Lakes, and Mississippi to 8 or more nodes.",
+          "Maintain French territorial control across the St. Lawrence, Great Lakes, and Mississippi at 7 or more nodes.",
         howToComplete:
-          "Hold your starting 7 nodes and capture Fort Oswego, Boston, or Ohio River Portage.",
+          "Hold your starting 7 nodes or capture Fort Oswego, Boston, or Ohio River Portage.",
         victoryPoints: 3,
         category: "TERRITORIAL",
         evaluate: (ctx) => {
           const count = ctx.faction?.nodesControlled?.length ?? 0;
+          const full = count >= 7;
+          const pts = full ? 3 : count >= 6 ? 1 : 0;
           return {
-            isCompleted: count >= 8,
-            progressText: `${count} / 8 Nodes Controlled`,
-            progressPercent: Math.min(100, Math.round((count / 8) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 7 Nodes Controlled (+${pts}/3 VP)`,
+            progressPercent: Math.min(100, Math.round((count / 7) * 100)),
           };
         },
       },
@@ -369,18 +416,20 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
     objectives: [
       {
         id: "fr-mil-1",
-        title: "Forward Siege Triumph: Capture Fort Oswego",
+        title: "Forward Defense: Fort Oswego, Niagara & Duquesne",
         description:
-          "Eliminate Britain's foothold on Lake Ontario by capturing Fort Oswego while holding Fort Niagara and Fort Duquesne.",
+          "Eliminate Britain's Lake Ontario staging post at Fort Oswego while securing Fort Niagara and Fort Duquesne.",
         howToComplete:
           "Issue MOVE orders from Fort Niagara or Fort Ticonderoga to assault and capture Fort Oswego.",
         victoryPoints: 4,
         category: "MILITARY",
         evaluate: (ctx) => {
           const res = hasNodeControl(ctx, ["Oswego", "Niagara", "Duquesne"]);
+          const pts = res.allControlled ? 4 : res.controlledCount >= 2 ? 2 : res.controlledCount >= 1 ? 1 : 0;
           return {
             isCompleted: res.allControlled,
-            progressText: `${res.controlledCount} / 3 Great Lakes & Ohio Forts Held`,
+            earnedVP: pts,
+            progressText: `${res.controlledCount} / 3 Great Lakes & Ohio Forts Held (+${pts}/4 VP)`,
             progressPercent: Math.round((res.controlledCount / 3) * 100),
           };
         },
@@ -396,28 +445,34 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "MILITARY",
         evaluate: (ctx) => {
           const raids = countOrdersOfType(ctx, ["RAID", "MOVE", "AMPHIBIOUS_ASSAULT"]);
+          const full = raids >= 2;
+          const pts = full ? 3 : raids >= 1 ? 1 : 0;
           return {
-            isCompleted: raids >= 2,
-            progressText: `${raids} / 2 Offensive Operations Launched`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${raids} / 2 Offensive Operations Launched (+${pts}/3 VP)`,
             progressPercent: Math.min(100, Math.round((raids / 2) * 100)),
           };
         },
       },
       {
         id: "fr-mil-3",
-        title: "Bastion of the Fleur-de-Lis (5,500+ Garrison Strength)",
+        title: "Bastion of the Fleur-de-Lis (4,800+ Garrison Strength)",
         description:
-          "Maintain a combined French regular and Canadian militia force of at least 5,500 strength.",
+          "Maintain a combined French regular, Canadian militia, and marine force of at least 4,800 strength.",
         howToComplete:
           "Issue RECRUIT orders at Quebec, New Orleans, and Fortress Louisbourg and avoid winter freeze attrition.",
         victoryPoints: 3,
         category: "MILITARY",
         evaluate: (ctx) => {
           const str = getTotalStrength(ctx);
+          const full = str >= 4800;
+          const pts = full ? 3 : str >= 3500 ? 1 : 0;
           return {
-            isCompleted: str >= 5500,
-            progressText: `${str.toLocaleString()} / 5,500 Total Strength`,
-            progressPercent: Math.min(100, Math.round((str / 5500) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${str.toLocaleString()} / 4,800 Total Strength (+${pts}/3 VP)`,
+            progressPercent: Math.min(100, Math.round((str / 4800) * 100)),
           };
         },
       },
@@ -437,43 +492,49 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
     objectives: [
       {
         id: "fr-dip-1",
-        title: "King's Magazine & Fur Monopoly (£220+ Treasury)",
+        title: "King's Magazine & Fur Monopoly (£160+ Treasury)",
         description:
-          "Build the French colonial treasury to £220 or higher through fur extraction and Antillean trade.",
+          "Build the French colonial treasury to £160 or higher through fur extraction and Antillean trade.",
         howToComplete:
           "Submit EXTRACT and TRADE orders from Quebec, New Orleans, and Fort Niagara.",
         victoryPoints: 4,
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const t = ctx.faction?.treasury ?? 0;
+          const full = t >= 160;
+          const pts = full ? 4 : t >= 100 ? 2 : 0;
           return {
-            isCompleted: t >= 220,
-            progressText: `£${t} / £220 Treasury`,
-            progressPercent: Math.min(100, Math.round((t / 220) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `£${t} / £160 Treasury (+${pts}/4 VP)`,
+            progressPercent: Math.min(100, Math.round((t / 160) * 100)),
           };
         },
       },
       {
         id: "fr-dip-2",
-        title: "Domestic Bread Peace (Unrest ≤ 15%)",
+        title: "Domestic Bread Peace (Unrest ≤ 25%)",
         description:
-          "Prevent famine bread riots in Quebec and Montreal by reducing French domestic Unrest to 15% or lower.",
+          "Prevent famine bread riots in Quebec and Montreal by keeping French domestic Unrest at 25% or lower.",
         howToComplete:
           "Use ASSEMBLY_NEGOTIATION or keep treasury positive to prevent deficit unrest spikes.",
         victoryPoints: 3,
         category: "SOVEREIGNTY",
         evaluate: (ctx) => {
           const u = ctx.faction?.unrestIndex ?? 0;
+          const full = u <= 25;
+          const pts = full ? 3 : u <= 35 ? 1 : 0;
           return {
-            isCompleted: u <= 15,
-            progressText: `Unrest: ${u}% (Target ≤ 15%)`,
-            progressPercent: u <= 15 ? 100 : Math.max(0, 100 - (u - 15) * 3),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Unrest: ${u}% (Target ≤ 25%) (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : Math.max(0, 100 - (u - 25) * 3),
           };
         },
       },
       {
         id: "fr-dip-3",
-        title: "Lifeline of the Windward Passage",
+        title: "Lifeline of the Windward Passage & New Orleans",
         description:
           "Maintain control of New Orleans and the Windward Passage while executing at least 2 commercial EXTRACT/TRADE orders.",
         howToComplete:
@@ -483,14 +544,14 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const nodes = hasNodeControl(ctx, ["New Orleans", "Windward Passage"]);
           const trades = countOrdersOfType(ctx, ["EXTRACT", "TRADE"]);
-          const done = nodes.allControlled && trades >= 2;
+          const full = nodes.allControlled && trades >= 2;
+          const partial = nodes.allControlled || (nodes.controlledCount >= 1 && trades >= 1);
+          const pts = full ? 3 : partial ? 1 : 0;
           return {
-            isCompleted: done,
-            progressText: `${nodes.controlledCount}/2 Nodes • ${trades}/2 Trade Orders`,
-            progressPercent: Math.min(
-              100,
-              Math.round(((nodes.controlledCount + Math.min(2, trades)) / 4) * 100)
-            ),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${nodes.controlledCount}/2 Nodes • ${trades}/2 Trade Orders (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : partial ? 60 : 0,
           };
         },
       },
@@ -514,57 +575,71 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
     objectives: [
       {
         id: "sp-exec-1",
-        title: "Key of the New World: Hold Havana & Gulf of Mexico",
+        title: "Key of the New World: Hold Havana & Patrol Gulf",
         description:
-          "Maintain sovereign Spanish control over both Havana and the Gulf of Mexico sea zone.",
+          "Maintain sovereign Spanish control over Havana and the Gulf of Mexico, supported by at least 2 naval patrol or trade orders.",
         howToComplete:
-          "Keep strong naval and regular garrisons stationed at Havana and move squadrons into the Gulf of Mexico.",
+          "Keep garrisons stationed at Havana and issue naval MOVE or TRADE orders into the Gulf of Mexico.",
         victoryPoints: 4,
         category: "TERRITORIAL",
         evaluate: (ctx) => {
           const res = hasNodeControl(ctx, ["Havana", "Gulf of Mexico"]);
+          const orders = countOrdersOfType(ctx, ["MOVE", "TRADE", "AMPHIBIOUS_ASSAULT"]);
+          const full = res.allControlled && orders >= 2;
+          const partial = res.allControlled;
+          const pts = full ? 4 : partial ? 2 : res.controlledCount >= 1 ? 1 : 0;
           return {
-            isCompleted: res.allControlled,
-            progressText: `${res.controlledCount} / 2 Caribbean Anchors Controlled`,
-            progressPercent: Math.round((res.controlledCount / 2) * 100),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${res.controlledCount}/2 Held • ${orders}/2 Directives (+${pts}/4 VP)`,
+            progressPercent: full ? 100 : partial ? 65 : 30,
           };
         },
       },
       {
         id: "sp-exec-2",
-        title: "Bourbon Imperial Prestige (6+ Standing Points)",
+        title: "Bourbon Family Compact & Diplomacy",
         description:
-          "Increase Spain's international Standing Points to 6 or higher through armed neutrality and diplomatic statecraft.",
+          "Increase Spain's Standing Points to 7 or higher and execute at least 2 diplomatic subsidies or dispatches.",
         howToComplete:
           "Fulfill strategic objectives, send diplomatic subsidies, and preserve treaty credibility.",
         victoryPoints: 3,
         category: "DIPLOMATIC",
         evaluate: (ctx) => {
           const pts = ctx.faction?.standingPoints ?? 0;
+          const dispatches = countOrdersOfType(ctx, ["SUBSIDIZE"]) + (ctx.factionDispatches?.length ?? 0);
+          const full = pts >= 7 && dispatches >= 2;
+          const partial = pts >= 6 && dispatches >= 1;
+          const earned = full ? 3 : partial ? 1 : 0;
           return {
-            isCompleted: pts >= 6,
-            progressText: `${pts} / 6 Standing Points`,
-            progressPercent: Math.min(100, Math.round((pts / 6) * 100)),
+            isCompleted: full,
+            earnedVP: earned,
+            progressText: `${pts}/7 Standing • ${dispatches}/2 Envoys (+${earned}/3 VP)`,
+            progressPercent: full ? 100 : partial ? 60 : 30,
           };
         },
       },
       {
         id: "sp-exec-3",
-        title: "Pax Hispanica (Unrest ≤ 10%)",
+        title: "Pax Hispanica: Order & Solvency",
         description:
-          "Keep civil unrest across the Viceroyalty at 10% or lower while maintaining zero new sovereign debt.",
+          "Keep civil unrest at or below 12% and debt at or below £25 while issuing at least 2 economic or assembly directives.",
         howToComplete:
-          "Avoid deficit spending and use ASSEMBLY_NEGOTIATION if colonial unrest rises.",
+          "Avoid deficit spending and use ASSEMBLY_NEGOTIATION or EXTRACT orders.",
         victoryPoints: 3,
         category: "SOVEREIGNTY",
         evaluate: (ctx) => {
           const u = ctx.faction?.unrestIndex ?? 0;
           const d = ctx.faction?.debt ?? 0;
-          const done = u <= 10 && d <= 25;
+          const orders = countOrdersOfType(ctx, ["ASSEMBLY_NEGOTIATION", "EXTRACT"]);
+          const full = u <= 12 && d <= 25 && orders >= 2;
+          const partial = u <= 15 && d <= 30;
+          const pts = full ? 3 : partial ? 1 : 0;
           return {
-            isCompleted: done,
-            progressText: `Unrest: ${u}% (≤10%) • Debt: £${d} (≤£25)`,
-            progressPercent: done ? 100 : 60,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Unrest: ${u}% • Debt: £${d} • ${orders}/2 Orders (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : partial ? 60 : 20,
           };
         },
       },
@@ -584,55 +659,66 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
     objectives: [
       {
         id: "sp-mil-1",
-        title: "Impregnable Morro Castle (3,500+ Strength)",
+        title: "Armada de Barlovento Expansion (4,500+ Strength)",
         description:
-          "Build Spanish combined naval and land forces to at least 3,500 total strength.",
+          "Build Spanish combined naval and land forces to at least 4,500 total strength.",
         howToComplete:
           "Issue RECRUIT orders at Havana to expand the Armada de Barlovento and regular regiments.",
         victoryPoints: 4,
         category: "MILITARY",
         evaluate: (ctx) => {
           const str = getTotalStrength(ctx);
+          const full = str >= 4500;
+          const pts = full ? 4 : str >= 3500 ? 2 : 0;
           return {
-            isCompleted: str >= 3500,
-            progressText: `${str.toLocaleString()} / 3,500 Fleet & Garrison Strength`,
-            progressPercent: Math.min(100, Math.round((str / 3500) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${str.toLocaleString()} / 4,500 Total Strength (+${pts}/4 VP)`,
+            progressPercent: Math.min(100, Math.round((str / 4500) * 100)),
           };
         },
       },
       {
         id: "sp-mil-2",
-        title: "Dominion of the Spanish Main (2+ Nodes Controlled)",
+        title: "Dominion of the Spanish Main",
         description:
-          "Expand Spanish control to at least 2 strategic nodes in the Caribbean / Gulf region.",
+          "Expand Spanish territorial control to 3+ nodes, OR execute 4+ naval patrol MOVE directives across the Caribbean.",
         howToComplete:
           "Move forces from Havana to secure the Gulf of Mexico or Windward Passage.",
         victoryPoints: 3,
         category: "TERRITORIAL",
         evaluate: (ctx) => {
           const count = ctx.faction?.nodesControlled?.length ?? 0;
+          const moves = countOrdersOfType(ctx, ["MOVE", "AMPHIBIOUS_ASSAULT"]);
+          const full = count >= 3 || moves >= 4;
+          const partial = count >= 2 && moves >= 2;
+          const pts = full ? 3 : partial ? 1 : 0;
           return {
-            isCompleted: count >= 2,
-            progressText: `${count} / 2 Nodes Controlled`,
-            progressPercent: Math.min(100, Math.round((count / 2) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} Nodes • ${moves} Naval Patrols (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : partial ? 60 : 25,
           };
         },
       },
       {
         id: "sp-mil-3",
-        title: "Guardacostas Readiness",
+        title: "Guardacostas Anti-Smuggling Directives",
         description:
-          "Execute at least 2 military RECRUIT or naval patrol MOVE directives to deter British privateers.",
+          "Execute at least 3 military RECRUIT or naval patrol MOVE directives to deter British privateers.",
         howToComplete:
           "Submit RECRUIT or MOVE orders from Havana.",
         victoryPoints: 3,
         category: "MILITARY",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["RECRUIT", "MOVE", "AMPHIBIOUS_ASSAULT"]);
+          const full = count >= 3;
+          const pts = full ? 3 : count >= 1 ? 1 : 0;
           return {
-            isCompleted: count >= 2,
-            progressText: `${count} / 2 Naval & Garrison Directives`,
-            progressPercent: Math.min(100, Math.round((count / 2) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 3 Directives (+${pts}/3 VP)`,
+            progressPercent: Math.min(100, Math.round((count / 3) * 100)),
           };
         },
       },
@@ -652,19 +738,24 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
     objectives: [
       {
         id: "sp-dip-1",
-        title: "Treasure of the Flota (£320+ Silver Treasury)",
+        title: "Silver Flota Delivery (£350+ Treasury)",
         description:
-          "Accumulate at least £320 in the Spanish Treasury through Havana silver extraction and trade convoys.",
+          "Accumulate at least £350 in the Spanish Treasury through Havana silver extraction and trade convoys.",
         howToComplete:
           "Issue EXTRACT and TRADE orders at Havana.",
         victoryPoints: 5,
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const t = ctx.faction?.treasury ?? 0;
+          const extracts = countOrdersOfType(ctx, ["EXTRACT"]);
+          const full = t >= 350 && extracts >= 3;
+          const partial = t >= 280 && extracts >= 2;
+          const pts = full ? 5 : partial ? 3 : t >= 200 ? 1 : 0;
           return {
-            isCompleted: t >= 320,
-            progressText: `£${t} / £320 Silver Bullion Reserve`,
-            progressPercent: Math.min(100, Math.round((t / 320) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `£${t} Treasury • ${extracts} Silver Extracts (+${pts}/5 VP)`,
+            progressPercent: Math.min(100, Math.round((t / 350) * 100)),
           };
         },
       },
@@ -672,17 +763,20 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         id: "sp-dip-2",
         title: "Carrera de Indias Convoy Operations",
         description:
-          "Execute at least 2 EXTRACT or TRADE directives to load and dispatch the royal treasure fleet.",
+          "Execute at least 3 TRADE directives to dispatch the royal treasure fleet across the Atlantic.",
         howToComplete:
-          "Select Havana and submit EXTRACT (Harvest Yield) or TRADE (Merchant Convoy) orders.",
+          "Select Havana and submit TRADE (Merchant Convoy) orders.",
         victoryPoints: 3,
         category: "ECONOMIC",
         evaluate: (ctx) => {
-          const count = countOrdersOfType(ctx, ["EXTRACT", "TRADE"]);
+          const count = countOrdersOfType(ctx, ["TRADE"]);
+          const full = count >= 3;
+          const pts = full ? 3 : count >= 1 ? 1 : 0;
           return {
-            isCompleted: count >= 2,
-            progressText: `${count} / 2 Treasure Convoy Orders`,
-            progressPercent: Math.min(100, Math.round((count / 2) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 3 Treasure Convoys (+${pts}/3 VP)`,
+            progressPercent: Math.min(100, Math.round((count / 3) * 100)),
           };
         },
       },
@@ -690,17 +784,20 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         id: "sp-dip-3",
         title: "Bullion Diplomacy",
         description:
-          "Send at least 1 SUBSIDIZE gift or diplomatic courier to influence the Anglo-French struggle.",
+          "Execute at least 2 SUBSIDIZE gifts or diplomatic couriers to influence the European struggle.",
         howToComplete:
-          "Submit a SUBSIDIZE order or send a diplomatic dispatch via the Couriers tab.",
+          "Submit SUBSIDIZE orders or send diplomatic dispatches via the Couriers tab.",
         victoryPoints: 2,
         category: "DIPLOMATIC",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["SUBSIDIZE"]) + (ctx.factionDispatches?.length ?? 0);
+          const full = count >= 2;
+          const pts = full ? 2 : count >= 1 ? 1 : 0;
           return {
-            isCompleted: count >= 1,
-            progressText: `${count} / 1 Diplomatic Bullion Action`,
-            progressPercent: Math.min(100, count * 100),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 2 Bullion Envoys (+${pts}/2 VP)`,
+            progressPercent: full ? 100 : count * 50,
           };
         },
       },
@@ -724,19 +821,23 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
     objectives: [
       {
         id: "pt-exec-1",
-        title: "Pombaline Reconstruction Fund (£210+ Treasury)",
+        title: "Pombaline Reconstruction Fund (£220+ Treasury)",
         description:
-          "Build Portugal's treasury to £210 or higher to finance the reconstruction of Lisbon.",
+          "Build Portugal's treasury to £220 or higher supported by at least 2 EXTRACT/TRADE directives.",
         howToComplete:
           "Issue EXTRACT and TRADE orders from Belém do Pará (Atlantic Entrepôt).",
         victoryPoints: 4,
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const t = ctx.faction?.treasury ?? 0;
+          const trades = countOrdersOfType(ctx, ["EXTRACT", "TRADE"]);
+          const full = t >= 220 && trades >= 2;
+          const pts = full ? 4 : t >= 170 ? 2 : 0;
           return {
-            isCompleted: t >= 210,
-            progressText: `£${t} / £210 Reconstruction Treasury`,
-            progressPercent: Math.min(100, Math.round((t / 210) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `£${t} / £220 Reconstruction Fund (+${pts}/4 VP)`,
+            progressPercent: Math.min(100, Math.round((t / 220) * 100)),
           };
         },
       },
@@ -744,7 +845,7 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         id: "pt-exec-2",
         title: "Sovereignty of Grão-Pará & Brazil",
         description:
-          "Maintain unbroken Portuguese control of Belém do Pará while keeping domestic Unrest at or below 12%.",
+          "Maintain unbroken Portuguese control of Belém do Pará while keeping domestic Unrest at or below 15%.",
         howToComplete:
           "Station garrison troops at Belém do Pará and avoid war weariness.",
         victoryPoints: 3,
@@ -752,29 +853,36 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const res = hasNodeControl(ctx, ["Belém"]);
           const u = ctx.faction?.unrestIndex ?? 0;
-          const done = res.allControlled && u <= 12;
+          const full = res.allControlled && u <= 15;
+          const pts = full ? 3 : res.allControlled ? 1 : 0;
           return {
-            isCompleted: done,
-            progressText: `Belém Held: ${res.allControlled ? "Yes" : "No"} • Unrest: ${u}% (≤12%)`,
-            progressPercent: done ? 100 : res.allControlled ? 65 : 0,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Belém: ${res.allControlled ? "Held" : "Lost"} • Unrest: ${u}% (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : res.allControlled ? 60 : 0,
           };
         },
       },
       {
         id: "pt-exec-3",
-        title: "Methuen Treaty Statecraft (5+ Standing Points)",
+        title: "Methuen Treaty Statecraft (Standing ≥ 6)",
         description:
-          "Elevate Portugal's international Standing Points to 5 or higher.",
+          "Elevate Portugal's international Standing Points to 6 or higher and dispatch at least 1 courier/subsidy.",
         howToComplete:
           "Send trade convoys, honor neutrality, and support allied commerce.",
         victoryPoints: 3,
         category: "DIPLOMATIC",
         evaluate: (ctx) => {
           const pts = ctx.faction?.standingPoints ?? 0;
+          const dispatches = countOrdersOfType(ctx, ["SUBSIDIZE"]) + (ctx.factionDispatches?.length ?? 0);
+          const full = pts >= 6 && dispatches >= 1;
+          const partial = pts >= 5;
+          const earned = full ? 3 : partial ? 1 : 0;
           return {
-            isCompleted: pts >= 5,
-            progressText: `${pts} / 5 Standing Points`,
-            progressPercent: Math.min(100, Math.round((pts / 5) * 100)),
+            isCompleted: full,
+            earnedVP: earned,
+            progressText: `${pts}/6 Standing • ${dispatches}/1 Envoy (+${earned}/3 VP)`,
+            progressPercent: full ? 100 : partial ? 65 : 30,
           };
         },
       },
@@ -794,19 +902,22 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
     objectives: [
       {
         id: "pt-mil-1",
-        title: "Amazonian Bastion (1,500+ Garrison & Fleet Strength)",
+        title: "Amazonian Bastion (1,800+ Strength)",
         description:
-          "Expand Portuguese naval and garrison forces to at least 1,500 total strength.",
+          "Expand Portuguese naval and garrison forces to at least 1,800 total strength.",
         howToComplete:
           "Submit RECRUIT (Muster Troops) orders at Belém do Pará.",
         victoryPoints: 4,
         category: "MILITARY",
         evaluate: (ctx) => {
           const str = getTotalStrength(ctx);
+          const full = str >= 1800;
+          const pts = full ? 4 : str >= 1200 ? 2 : 0;
           return {
-            isCompleted: str >= 1500,
-            progressText: `${str.toLocaleString()} / 1,500 Strength`,
-            progressPercent: Math.min(100, Math.round((str / 1500) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${str.toLocaleString()} / 1,800 Strength (+${pts}/4 VP)`,
+            progressPercent: Math.min(100, Math.round((str / 1800) * 100)),
           };
         },
       },
@@ -814,17 +925,20 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         id: "pt-mil-2",
         title: "South Atlantic Convoy Escort",
         description:
-          "Execute at least 2 military RECRUIT or naval patrol MOVE directives.",
+          "Execute at least 3 military RECRUIT or naval patrol MOVE directives from Belém do Pará.",
         howToComplete:
           "Issue RECRUIT or MOVE orders from Belém do Pará.",
         victoryPoints: 3,
         category: "MILITARY",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["RECRUIT", "MOVE"]);
+          const full = count >= 3;
+          const pts = full ? 3 : count >= 1 ? 1 : 0;
           return {
-            isCompleted: count >= 2,
-            progressText: `${count} / 2 Escort Directives`,
-            progressPercent: Math.min(100, Math.round((count / 2) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 3 Escort Directives (+${pts}/3 VP)`,
+            progressPercent: Math.min(100, Math.round((count / 3) * 100)),
           };
         },
       },
@@ -839,9 +953,11 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "TERRITORIAL",
         evaluate: (ctx) => {
           const res = hasNodeControl(ctx, ["Belém"]);
+          const pts = res.allControlled ? 3 : 0;
           return {
             isCompleted: res.allControlled,
-            progressText: res.allControlled ? "Perimeter Secure (1/1)" : "Perimeter Breached",
+            earnedVP: pts,
+            progressText: res.allControlled ? "Perimeter Secure (+3/3 VP)" : "Lost",
             progressPercent: res.allControlled ? 100 : 0,
           };
         },
@@ -871,9 +987,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["EXTRACT", "TRADE"]);
+          const full = count >= 3;
+          const pts = full ? 4 : count >= 1 ? 2 : 0;
           return {
-            isCompleted: count >= 3,
-            progressText: `${count} / 3 Commercial Directives`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 3 Commercial Directives (+${pts}/4 VP)`,
             progressPercent: Math.min(100, Math.round((count / 3) * 100)),
           };
         },
@@ -890,10 +1009,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const d = ctx.faction?.debt ?? 0;
           const t = ctx.faction?.treasury ?? 0;
-          const done = d <= 25 && t >= 180;
+          const full = d <= 25 && t >= 180;
+          const pts = full ? 3 : t >= 140 ? 1 : 0;
           return {
-            isCompleted: done,
-            progressText: `Treasury: £${t}/£180 • Debt: £${d} (≤£25)`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Treasury: £${t}/£180 • Debt: £${d} (+${pts}/3 VP)`,
             progressPercent: Math.min(100, Math.round((t / 180) * 100)),
           };
         },
@@ -902,17 +1023,20 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         id: "pt-dip-3",
         title: "Atlantic Trade Diplomacy",
         description:
-          "Send at least 1 diplomatic courier or commercial subsidy to a trading partner.",
+          "Send at least 2 diplomatic couriers or commercial subsidies to trading partners.",
         howToComplete:
           "Use the Couriers tab or SUBSIDIZE order to cement commercial ties.",
         victoryPoints: 3,
         category: "DIPLOMATIC",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["SUBSIDIZE"]) + (ctx.factionDispatches?.length ?? 0);
+          const full = count >= 2;
+          const pts = full ? 3 : count >= 1 ? 1 : 0;
           return {
-            isCompleted: count >= 1,
-            progressText: `${count} / 1 Diplomatic Trade Mission`,
-            progressPercent: Math.min(100, count * 100),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 2 Trade Envoys (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : count * 50,
           };
         },
       },
@@ -936,27 +1060,31 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
     objectives: [
       {
         id: "nl-exec-1",
-        title: "Golden Rock Emporium (£300+ Treasury)",
+        title: "Golden Rock Emporium (£320+ Treasury)",
         description:
-          "Grow the Dutch Republic's treasury to £300 or higher through neutral freight bonuses and Caribbean arbitrage.",
+          "Grow the Dutch Republic's treasury to £320 or higher supported by at least 2 EXTRACT/TRADE directives.",
         howToComplete:
-          "Maintain neutrality to collect the West Africa/Atlantic Freight Bonus and issue EXTRACT/TRADE orders at Willemstad.",
+          "Maintain neutrality to collect freight bonuses and issue EXTRACT/TRADE orders at Willemstad.",
         victoryPoints: 4,
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const t = ctx.faction?.treasury ?? 0;
+          const trades = countOrdersOfType(ctx, ["EXTRACT", "TRADE"]);
+          const full = t >= 320 && trades >= 2;
+          const pts = full ? 4 : t >= 250 ? 2 : 0;
           return {
-            isCompleted: t >= 300,
-            progressText: `£${t} / £300 Dutch Treasury`,
-            progressPercent: Math.min(100, Math.round((t / 300) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `£${t} / £320 Dutch Treasury (+${pts}/4 VP)`,
+            progressPercent: Math.min(100, Math.round((t / 320) * 100)),
           };
         },
       },
       {
         id: "nl-exec-2",
-        title: "Free Ships, Free Goods (Hold Willemstad & Unrest ≤ 10%)",
+        title: "Free Ships, Free Goods (Hold Willemstad & Unrest ≤ 12%)",
         description:
-          "Retain control of Willemstad (Curaçao) with civil unrest at 10% or lower.",
+          "Retain control of Willemstad (Curaçao) with civil unrest at 12% or lower.",
         howToComplete:
           "Keep Willemstad well-garrisoned and avoid entangling offensive wars.",
         victoryPoints: 3,
@@ -964,29 +1092,36 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const res = hasNodeControl(ctx, ["Willemstad"]);
           const u = ctx.faction?.unrestIndex ?? 0;
-          const done = res.allControlled && u <= 10;
+          const full = res.allControlled && u <= 12;
+          const pts = full ? 3 : res.allControlled ? 1 : 0;
           return {
-            isCompleted: done,
-            progressText: `Willemstad Held • Unrest: ${u}% (≤10%)`,
-            progressPercent: done ? 100 : res.allControlled ? 70 : 0,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Willemstad: ${res.allControlled ? "Held" : "Lost"} • Unrest: ${u}% (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : res.allControlled ? 65 : 0,
           };
         },
       },
       {
         id: "nl-exec-3",
-        title: "Arbiter of the Antilles (6+ Standing Points)",
+        title: "Arbiter of the Antilles (Standing ≥ 7)",
         description:
-          "Raise the Dutch Republic's international Standing Points to 6 or higher.",
+          "Raise the Dutch Republic's international Standing Points to 7 or higher with at least 1 courier/subsidy.",
         howToComplete:
           "Trade with all belligerents, send financial subsidies, and uphold neutral maritime law.",
         victoryPoints: 3,
         category: "DIPLOMATIC",
         evaluate: (ctx) => {
           const pts = ctx.faction?.standingPoints ?? 0;
+          const dispatches = countOrdersOfType(ctx, ["SUBSIDIZE"]) + (ctx.factionDispatches?.length ?? 0);
+          const full = pts >= 7 && dispatches >= 1;
+          const partial = pts >= 6;
+          const earned = full ? 3 : partial ? 1 : 0;
           return {
-            isCompleted: pts >= 6,
-            progressText: `${pts} / 6 Standing Points`,
-            progressPercent: Math.min(100, Math.round((pts / 6) * 100)),
+            isCompleted: full,
+            earnedVP: earned,
+            progressText: `${pts}/7 Standing • ${dispatches}/1 Dispatch (+${earned}/3 VP)`,
+            progressPercent: full ? 100 : partial ? 65 : 30,
           };
         },
       },
@@ -1006,19 +1141,22 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
     objectives: [
       {
         id: "nl-mil-1",
-        title: "Armed Neutrality Deterrent (1,600+ Strength)",
+        title: "Armed Neutrality Deterrent (2,000+ Strength)",
         description:
-          "Build Dutch naval escort and garrison strength at Willemstad to at least 1,600 men.",
+          "Build Dutch naval escort and garrison strength at Willemstad to at least 2,000 men.",
         howToComplete:
           "Issue RECRUIT orders at Willemstad (Curaçao).",
         victoryPoints: 4,
         category: "MILITARY",
         evaluate: (ctx) => {
           const str = getTotalStrength(ctx);
+          const full = str >= 2000;
+          const pts = full ? 4 : str >= 1400 ? 2 : 0;
           return {
-            isCompleted: str >= 1600,
-            progressText: `${str.toLocaleString()} / 1,600 Squadron Strength`,
-            progressPercent: Math.min(100, Math.round((str / 1600) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${str.toLocaleString()} / 2,000 Strength (+${pts}/4 VP)`,
+            progressPercent: Math.min(100, Math.round((str / 2000) * 100)),
           };
         },
       },
@@ -1026,7 +1164,7 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         id: "nl-mil-2",
         title: "Fort Amsterdam Harbor Defense",
         description:
-          "Keep Willemstad under uninterrupted Dutch sovereignty while issuing at least 2 military/escort directives.",
+          "Keep Willemstad under uninterrupted Dutch sovereignty while issuing at least 3 military/escort directives.",
         howToComplete:
           "Station all recruited units at Willemstad and issue RECRUIT or patrol orders.",
         victoryPoints: 3,
@@ -1034,29 +1172,35 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const res = hasNodeControl(ctx, ["Willemstad"]);
           const count = countOrdersOfType(ctx, ["RECRUIT", "MOVE"]);
-          const done = res.allControlled && count >= 2;
+          const full = res.allControlled && count >= 3;
+          const partial = res.allControlled && count >= 1;
+          const pts = full ? 3 : partial ? 1 : 0;
           return {
-            isCompleted: done,
-            progressText: `Harbor Held • ${count}/2 Defense Orders`,
-            progressPercent: Math.min(100, Math.round(((res.controlledCount + Math.min(2, count)) / 3) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Harbor Held • ${count}/3 Orders (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : partial ? 60 : 0,
           };
         },
       },
       {
         id: "nl-mil-3",
-        title: "Zero Fleet Losses to Hurricanes",
+        title: "Active Caribbean Fleet Readiness",
         description:
-          "Maintain at least 1 active unit formation at full combat readiness in the Caribbean.",
+          "Maintain at least 1,200 strength stationed in combat-ready formations at Willemstad.",
         howToComplete:
           "Keep merchantmen and warships sheltered in Willemstad during Autumn hurricane turns.",
         victoryPoints: 3,
         category: "MILITARY",
         evaluate: (ctx) => {
-          const units = ctx.faction?.units?.length ?? 0;
+          const str = getTotalStrength(ctx);
+          const full = str >= 1200;
+          const pts = full ? 3 : str >= 800 ? 1 : 0;
           return {
-            isCompleted: units >= 1 && getTotalStrength(ctx) >= 1000,
-            progressText: `${units} Active Formation(s) (${getTotalStrength(ctx)} str)`,
-            progressPercent: units >= 1 ? 100 : 0,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${str.toLocaleString()} / 1,200 Fleet Readiness (+${pts}/3 VP)`,
+            progressPercent: Math.min(100, Math.round((str / 1200) * 100)),
           };
         },
       },
@@ -1076,57 +1220,66 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
     objectives: [
       {
         id: "nl-dip-1",
-        title: "Contraband Arbitrage Master (3+ Trade/Extract Orders)",
+        title: "Contraband Arbitrage Master (4+ Trade/Extract Orders)",
         description:
-          "Execute at least 3 TRADE or EXTRACT orders from Willemstad.",
+          "Execute at least 4 TRADE or EXTRACT orders from Willemstad.",
         howToComplete:
           "Select Willemstad and submit TRADE (Merchant Convoy) and EXTRACT (Harvest Yield) orders.",
         victoryPoints: 4,
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["TRADE", "EXTRACT"]);
+          const full = count >= 4;
+          const pts = full ? 4 : count >= 2 ? 2 : 0;
           return {
-            isCompleted: count >= 3,
-            progressText: `${count} / 3 WIC Commercial Orders`,
-            progressPercent: Math.min(100, Math.round((count / 3) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 4 Commercial Orders (+${pts}/4 VP)`,
+            progressPercent: Math.min(100, Math.round((count / 4) * 100)),
           };
         },
       },
       {
         id: "nl-dip-2",
-        title: "Amsterdam Credit House (Debt ≤ £15)",
+        title: "Amsterdam Credit House (Debt ≤ £15 & 2+ Envoys)",
         description:
-          "Keep Dutch national debt at or below £15 while extending at least 1 financial subsidy or courier dispatch.",
+          "Keep Dutch national debt at or below £15 while extending at least 2 financial subsidies or courier dispatches.",
         howToComplete:
-          "Avoid deficit spending and issue a SUBSIDIZE order or diplomatic courier.",
+          "Avoid deficit spending and issue SUBSIDIZE orders or diplomatic couriers.",
         victoryPoints: 3,
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const d = ctx.faction?.debt ?? 0;
           const subs = countOrdersOfType(ctx, ["SUBSIDIZE"]) + (ctx.factionDispatches?.length ?? 0);
-          const done = d <= 15 && subs >= 1;
+          const full = d <= 15 && subs >= 2;
+          const partial = d <= 15 && subs >= 1;
+          const pts = full ? 3 : partial ? 1 : 0;
           return {
-            isCompleted: done,
-            progressText: `Debt: £${d} (≤£15) • ${subs}/1 Credit Dispatch`,
-            progressPercent: done ? 100 : d <= 15 ? 50 : 20,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Debt: £${d} • ${subs}/2 Credit Envoys (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : partial ? 60 : 20,
           };
         },
       },
       {
         id: "nl-dip-3",
-        title: "entrepôt Prosperity (£260+ Treasury)",
+        title: "Entrepôt Prosperity (£280+ Treasury)",
         description:
-          "Maintain at least £260 in liquid treasury coin.",
+          "Maintain at least £280 in liquid treasury coin.",
         howToComplete:
           "Harvest Willemstad's £40/turn sugar yield and collect Atlantic freight bonuses.",
         victoryPoints: 3,
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const t = ctx.faction?.treasury ?? 0;
+          const full = t >= 280;
+          const pts = full ? 3 : t >= 200 ? 1 : 0;
           return {
-            isCompleted: t >= 260,
-            progressText: `£${t} / £260 Liquid Treasury`,
-            progressPercent: Math.min(100, Math.round((t / 260) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `£${t} / £280 Liquid Treasury (+${pts}/3 VP)`,
+            progressPercent: Math.min(100, Math.round((t / 280) * 100)),
           };
         },
       },
@@ -1160,47 +1313,57 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const count = ctx.faction?.nodesControlled?.length ?? 0;
           const hasPhilly = hasNodeControl(ctx, ["Philadelphia"]).allControlled;
-          const done = hasPhilly && count >= 2;
+          const full = hasPhilly && count >= 2;
+          const pts = full ? 4 : hasPhilly ? 2 : 0;
           return {
-            isCompleted: done,
-            progressText: `Philadelphia: ${hasPhilly ? "Held" : "Lost"} • ${count}/2 Nodes`,
-            progressPercent: done ? 100 : hasPhilly ? 60 : 0,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Philadelphia: ${hasPhilly ? "Held" : "Lost"} • ${count}/2 Nodes (+${pts}/4 VP)`,
+            progressPercent: full ? 100 : hasPhilly ? 60 : 0,
           };
         },
       },
       {
         id: "ge-exec-2",
-        title: "Convention of Westminster Prestige (6+ Standing)",
+        title: "Convention of Westminster Prestige (Standing ≥ 6)",
         description:
-          "Increase German States Standing Points to 6 or higher through coalition fidelity.",
+          "Increase German States Standing Points to 6 or higher through coalition fidelity and courier dispatch.",
         howToComplete:
           "Support British operations, fulfill military objectives, and send coalition dispatches.",
         victoryPoints: 3,
         category: "DIPLOMATIC",
         evaluate: (ctx) => {
           const pts = ctx.faction?.standingPoints ?? 0;
+          const dispatches = countOrdersOfType(ctx, ["SUBSIDIZE"]) + (ctx.factionDispatches?.length ?? 0);
+          const full = pts >= 6 && dispatches >= 1;
+          const partial = pts >= 5;
+          const earned = full ? 3 : partial ? 1 : 0;
           return {
-            isCompleted: pts >= 6,
-            progressText: `${pts} / 6 Standing Points`,
-            progressPercent: Math.min(100, Math.round((pts / 6) * 100)),
+            isCompleted: full,
+            earnedVP: earned,
+            progressText: `${pts}/6 Standing • ${dispatches}/1 Dispatch (+${earned}/3 VP)`,
+            progressPercent: full ? 100 : partial ? 65 : 30,
           };
         },
       },
       {
         id: "ge-exec-3",
-        title: "Pennsylvania Civic Order (Unrest ≤ 15%)",
+        title: "Pennsylvania Civic Order (Unrest ≤ 20%)",
         description:
-          "Keep unrest in Philadelphia and the Pennsylvania backcountry at 15% or lower.",
+          "Keep unrest in Philadelphia and the Pennsylvania backcountry at 20% or lower.",
         howToComplete:
           "Protect Philadelphia from frontier raids and use ASSEMBLY_NEGOTIATION when needed.",
         victoryPoints: 3,
         category: "SOVEREIGNTY",
         evaluate: (ctx) => {
           const u = ctx.faction?.unrestIndex ?? 0;
+          const full = u <= 20;
+          const pts = full ? 3 : u <= 30 ? 1 : 0;
           return {
-            isCompleted: u <= 15,
-            progressText: `Unrest: ${u}% (Target ≤ 15%)`,
-            progressPercent: u <= 15 ? 100 : Math.max(0, 100 - (u - 15) * 3),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Unrest: ${u}% (Target ≤ 20%) (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : Math.max(0, 100 - (u - 20) * 3),
           };
         },
       },
@@ -1220,19 +1383,22 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
     objectives: [
       {
         id: "ge-mil-1",
-        title: "Muster the 60th Royal Americans (2,000+ Strength)",
+        title: "Muster the 60th Royal Americans (2,200+ Strength)",
         description:
-          "Build your German Jaeger and Royal American forces to at least 2,000 total strength.",
+          "Build your German Jaeger and Royal American forces to at least 2,200 total strength.",
         howToComplete:
           "Submit RECRUIT orders at Philadelphia.",
         victoryPoints: 4,
         category: "MILITARY",
         evaluate: (ctx) => {
           const str = getTotalStrength(ctx);
+          const full = str >= 2200;
+          const pts = full ? 4 : str >= 1500 ? 2 : 0;
           return {
-            isCompleted: str >= 2000,
-            progressText: `${str.toLocaleString()} / 2,000 Regiment Strength`,
-            progressPercent: Math.min(100, Math.round((str / 2000) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${str.toLocaleString()} / 2,200 Regiment Strength (+${pts}/4 VP)`,
+            progressPercent: Math.min(100, Math.round((str / 2200) * 100)),
           };
         },
       },
@@ -1247,9 +1413,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "MILITARY",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["MOVE", "RECRUIT"]);
+          const full = count >= 2;
+          const pts = full ? 3 : count >= 1 ? 1 : 0;
           return {
-            isCompleted: count >= 2,
-            progressText: `${count} / 2 Field Directives Executed`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 2 Field Directives (+${pts}/3 VP)`,
             progressPercent: Math.min(100, Math.round((count / 2) * 100)),
           };
         },
@@ -1265,9 +1434,11 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "TERRITORIAL",
         evaluate: (ctx) => {
           const res = hasNodeControl(ctx, ["Philadelphia"]);
+          const pts = res.allControlled ? 3 : 0;
           return {
             isCompleted: res.allControlled,
-            progressText: res.allControlled ? "Philadelphia Secure" : "Philadelphia Lost",
+            earnedVP: pts,
+            progressText: res.allControlled ? "Philadelphia Secure (+3/3 VP)" : "Philadelphia Lost",
             progressPercent: res.allControlled ? 100 : 0,
           };
         },
@@ -1288,19 +1459,22 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
     objectives: [
       {
         id: "ge-dip-1",
-        title: "Continental War Chest (£190+ Treasury)",
+        title: "Continental War Chest (£170+ Treasury)",
         description:
-          "Grow the German States treasury to £190 or higher through timber extraction and subsidy management.",
+          "Grow the German States treasury to £170 or higher through timber extraction and subsidy management.",
         howToComplete:
           "Issue EXTRACT and TRADE orders at Philadelphia.",
         victoryPoints: 4,
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const t = ctx.faction?.treasury ?? 0;
+          const full = t >= 170;
+          const pts = full ? 4 : t >= 120 ? 2 : 0;
           return {
-            isCompleted: t >= 190,
-            progressText: `£${t} / £190 Commissariat Treasury`,
-            progressPercent: Math.min(100, Math.round((t / 190) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `£${t} / £170 Treasury (+${pts}/4 VP)`,
+            progressPercent: Math.min(100, Math.round((t / 170) * 100)),
           };
         },
       },
@@ -1315,9 +1489,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["EXTRACT", "TRADE"]);
+          const full = count >= 2;
+          const pts = full ? 3 : count >= 1 ? 1 : 0;
           return {
-            isCompleted: count >= 2,
-            progressText: `${count} / 2 Supply Directives`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 2 Supply Directives (+${pts}/3 VP)`,
             progressPercent: Math.min(100, Math.round((count / 2) * 100)),
           };
         },
@@ -1333,9 +1510,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "DIPLOMATIC",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["SUBSIDIZE"]) + (ctx.factionDispatches?.length ?? 0);
+          const full = count >= 1;
+          const pts = full ? 3 : 0;
           return {
-            isCompleted: count >= 1,
-            progressText: `${count} / 1 Coalition Remittance`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 1 Coalition Remittance (+${pts}/3 VP)`,
             progressPercent: Math.min(100, count * 100),
           };
         },
@@ -1370,37 +1550,44 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const hasOnondaga = hasNodeControl(ctx, ["Onondaga"]).allControlled;
           const covs = ctx.faction?.covenantBoundaries?.length ?? 0;
-          const done = hasOnondaga && covs >= 1;
+          const full = hasOnondaga && covs >= 1;
+          const pts = full ? 4 : hasOnondaga ? 2 : 0;
           return {
-            isCompleted: done,
-            progressText: `Onondaga: ${hasOnondaga ? "Held" : "Lost"} • ${covs}/1 Covenant Line`,
-            progressPercent: done ? 100 : hasOnondaga ? 50 : 0,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Onondaga: ${hasOnondaga ? "Held" : "Lost"} • ${covs}/1 Covenant Line (+${pts}/4 VP)`,
+            progressPercent: full ? 100 : hasOnondaga ? 50 : 0,
           };
         },
       },
       {
         id: "hd-exec-2",
-        title: "Iroquoia Expansion (2+ Controlled Nodes)",
+        title: "Iroquoia Sovereignty & Border Security",
         description:
-          "Expand Six Nations territorial control to at least 2 nodes (e.g., Onondaga plus Fort Oswego or Fort Niagara).",
+          "Expand Six Nations territorial control to 2+ nodes, OR conduct at least 2 frontier raid/move operations to secure borders.",
         howToComplete:
-          "March war parties to reclaim ancestral hunting and portage grounds at Fort Oswego or Fort Niagara.",
+          "March war parties to reclaim ancestral hunting grounds at Fort Oswego or Fort Niagara.",
         victoryPoints: 3,
         category: "TERRITORIAL",
         evaluate: (ctx) => {
           const count = ctx.faction?.nodesControlled?.length ?? 0;
+          const ops = countOrdersOfType(ctx, ["RAID", "MOVE"]);
+          const full = count >= 2;
+          const partial = count >= 1 && ops >= 2;
+          const pts = full ? 3 : partial ? 2 : count >= 1 ? 1 : 0;
           return {
-            isCompleted: count >= 2,
-            progressText: `${count} / 2 Confederacy Nodes Controlled`,
-            progressPercent: Math.min(100, Math.round((count / 2) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} Nodes Controlled • ${ops} Border Operations (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : partial ? 70 : 35,
           };
         },
       },
       {
         id: "hd-exec-3",
-        title: "Harmony of the Longhouse (Unrest ≤ 15% & Standing ≥ 6)",
+        title: "Harmony of the Longhouse (Unrest ≤ 25% & Standing ≥ 6)",
         description:
-          "Keep Confederacy domestic Unrest at 15% or lower while achieving 6+ Standing Points.",
+          "Keep Confederacy domestic Unrest at 25% or lower while achieving 6+ Standing Points.",
         howToComplete:
           "Distribute wampum gifts via SUBSIDIZE/TRADE and protect council towns.",
         victoryPoints: 3,
@@ -1408,11 +1595,14 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const u = ctx.faction?.unrestIndex ?? 0;
           const s = ctx.faction?.standingPoints ?? 0;
-          const done = u <= 15 && s >= 6;
+          const full = u <= 25 && s >= 6;
+          const partial = u <= 35 || s >= 5;
+          const pts = full ? 3 : partial ? 1 : 0;
           return {
-            isCompleted: done,
-            progressText: `Unrest: ${u}% (≤15%) • Standing: ${s}/6`,
-            progressPercent: done ? 100 : Math.min(90, Math.round((s / 6) * 80)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Unrest: ${u}% (≤25%) • Standing: ${s}/6 (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : partial ? 60 : 30,
           };
         },
       },
@@ -1441,9 +1631,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "MILITARY",
         evaluate: (ctx) => {
           const str = getTotalStrength(ctx);
+          const full = str >= 2200;
+          const pts = full ? 4 : str >= 1500 ? 2 : 0;
           return {
-            isCompleted: str >= 2200,
-            progressText: `${str.toLocaleString()} / 2,200 Warrior Strength`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${str.toLocaleString()} / 2,200 Warrior Strength (+${pts}/4 VP)`,
             progressPercent: Math.min(100, Math.round((str / 2200) * 100)),
           };
         },
@@ -1459,9 +1652,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "MILITARY",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["RAID"]);
+          const full = count >= 2;
+          const pts = full ? 3 : count >= 1 ? 1 : 0;
           return {
-            isCompleted: count >= 2,
-            progressText: `${count} / 2 Frontier Raids Launched`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 2 Frontier Raids Launched (+${pts}/3 VP)`,
             progressPercent: Math.min(100, Math.round((count / 2) * 100)),
           };
         },
@@ -1477,9 +1673,11 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "TERRITORIAL",
         evaluate: (ctx) => {
           const res = hasNodeControl(ctx, ["Onondaga"]);
+          const pts = res.allControlled ? 3 : 0;
           return {
             isCompleted: res.allControlled,
-            progressText: res.allControlled ? "Onondaga Unconquered" : "Onondaga Lost",
+            earnedVP: pts,
+            progressText: res.allControlled ? "Onondaga Unconquered (+3/3 VP)" : "Lost",
             progressPercent: res.allControlled ? 100 : 0,
           };
         },
@@ -1500,25 +1698,28 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
     objectives: [
       {
         id: "hd-dip-1",
-        title: "Lake Ontario Fur Primacy (£160+ Treasury)",
+        title: "Lake Ontario Fur Primacy (£150+ Treasury)",
         description:
-          "Build the Confederacy treasury to £160 or higher through beaver peltry extraction and trade.",
+          "Build the Confederacy treasury to £150 or higher through beaver peltry extraction and trade.",
         howToComplete:
           "Issue EXTRACT and TRADE orders at Onondaga Council Fire.",
         victoryPoints: 4,
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const t = ctx.faction?.treasury ?? 0;
+          const full = t >= 150;
+          const pts = full ? 4 : t >= 100 ? 2 : 0;
           return {
-            isCompleted: t >= 160,
-            progressText: `£${t} / £160 Peltry & Wampum Treasury`,
-            progressPercent: Math.min(100, Math.round((t / 160) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `£${t} / £150 Treasury (+${pts}/4 VP)`,
+            progressPercent: Math.min(100, Math.round((t / 150) * 100)),
           };
         },
       },
       {
         id: "hd-dip-2",
-        title: "Wampum Condolence Diplomacy (2+ Subsidize/Trade Orders)",
+        title: "Wampum Condolence Diplomacy (2+ Orders)",
         description:
           "Execute at least 2 SUBSIDIZE or TRADE directives to distribute wampum and secure gunpowder.",
         howToComplete:
@@ -1527,28 +1728,34 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "DIPLOMATIC",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["SUBSIDIZE", "TRADE", "EXTRACT"]);
+          const full = count >= 2;
+          const pts = full ? 3 : count >= 1 ? 1 : 0;
           return {
-            isCompleted: count >= 2,
-            progressText: `${count} / 2 Wampum & Trade Directives`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 2 Wampum & Trade Orders (+${pts}/3 VP)`,
             progressPercent: Math.min(100, Math.round((count / 2) * 100)),
           };
         },
       },
       {
         id: "hd-dip-3",
-        title: "Sovereign Debt Freedom (Zero Debt)",
+        title: "Sovereign Debt Freedom (Debt ≤ £10)",
         description:
-          "Maintain zero sovereign debt (£0) so the Six Nations remain beholden to no European crown.",
+          "Maintain sovereign debt at or below £10 so the Six Nations remain beholden to no European crown.",
         howToComplete:
           "Fund all warrior musters and gifts strictly from peltry revenues and subsidies.",
         victoryPoints: 3,
         category: "SOVEREIGNTY",
         evaluate: (ctx) => {
           const d = ctx.faction?.debt ?? 0;
+          const full = d <= 10;
+          const pts = full ? 3 : d <= 25 ? 1 : 0;
           return {
-            isCompleted: d === 0,
-            progressText: `Debt: £${d} (Target: £0)`,
-            progressPercent: d === 0 ? 100 : 0,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Debt: £${d} (Target ≤ £10) (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : d <= 25 ? 50 : 0,
           };
         },
       },
@@ -1574,7 +1781,7 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         id: "sn-exec-1",
         title: "Sanctuary of Kahnawake & St. Lawrence",
         description:
-          "Maintain unbroken control of Kahnawake (Seven Nations Council) while keeping Unrest at or below 15%.",
+          "Maintain unbroken control of Kahnawake (Seven Nations Council) while keeping Unrest at or below 20%.",
         howToComplete:
           "Garrison Kahnawake and distribute wampum subsidies to keep mission towns united.",
         victoryPoints: 4,
@@ -1582,11 +1789,13 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const held = hasNodeControl(ctx, ["Kahnawake"]).allControlled;
           const u = ctx.faction?.unrestIndex ?? 0;
-          const done = held && u <= 15;
+          const full = held && u <= 20;
+          const pts = full ? 4 : held ? 2 : 0;
           return {
-            isCompleted: done,
-            progressText: `Kahnawake: ${held ? "Held" : "Lost"} • Unrest: ${u}% (≤15%)`,
-            progressPercent: done ? 100 : held ? 60 : 0,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Kahnawake: ${held ? "Held" : "Lost"} • Unrest: ${u}% (+${pts}/4 VP)`,
+            progressPercent: full ? 100 : held ? 60 : 0,
           };
         },
       },
@@ -1601,9 +1810,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "DIPLOMATIC",
         evaluate: (ctx) => {
           const pts = ctx.faction?.standingPoints ?? 0;
+          const full = pts >= 6;
+          const earned = full ? 3 : pts >= 5 ? 1 : 0;
           return {
-            isCompleted: pts >= 6,
-            progressText: `${pts} / 6 Standing Points`,
+            isCompleted: full,
+            earnedVP: earned,
+            progressText: `${pts} / 6 Standing Points (+${earned}/3 VP)`,
             progressPercent: Math.min(100, Math.round((pts / 6) * 100)),
           };
         },
@@ -1620,11 +1832,13 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const covs = ctx.faction?.covenantBoundaries?.length ?? 0;
           const nodes = ctx.faction?.nodesControlled?.length ?? 0;
-          const done = covs >= 1 || nodes >= 2;
+          const full = covs >= 1 || nodes >= 2;
+          const pts = full ? 3 : nodes >= 1 ? 1 : 0;
           return {
-            isCompleted: done,
-            progressText: `${covs} Covenant(s) • ${nodes} Node(s) Controlled`,
-            progressPercent: done ? 100 : 50,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${covs} Covenant(s) • ${nodes} Node(s) Held (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : 50,
           };
         },
       },
@@ -1653,9 +1867,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "MILITARY",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["RAID"]);
+          const full = count >= 2;
+          const pts = full ? 4 : count >= 1 ? 2 : 0;
           return {
-            isCompleted: count >= 2,
-            progressText: `${count} / 2 Frontier Raids Executed`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 2 Frontier Raids Executed (+${pts}/4 VP)`,
             progressPercent: Math.min(100, Math.round((count / 2) * 100)),
           };
         },
@@ -1671,9 +1888,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "MILITARY",
         evaluate: (ctx) => {
           const str = getTotalStrength(ctx);
+          const full = str >= 1800;
+          const pts = full ? 3 : str >= 1200 ? 1 : 0;
           return {
-            isCompleted: str >= 1800,
-            progressText: `${str.toLocaleString()} / 1,800 Warrior Strength`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${str.toLocaleString()} / 1,800 Warrior Strength (+${pts}/3 VP)`,
             progressPercent: Math.min(100, Math.round((str / 1800) * 100)),
           };
         },
@@ -1689,9 +1909,11 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "TERRITORIAL",
         evaluate: (ctx) => {
           const res = hasNodeControl(ctx, ["Kahnawake"]);
+          const pts = res.allControlled ? 3 : 0;
           return {
             isCompleted: res.allControlled,
-            progressText: res.allControlled ? "Kahnawake Secure" : "Kahnawake Lost",
+            earnedVP: pts,
+            progressText: res.allControlled ? "Kahnawake Secure (+3/3 VP)" : "Lost",
             progressPercent: res.allControlled ? 100 : 0,
           };
         },
@@ -1712,19 +1934,22 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
     objectives: [
       {
         id: "sn-dip-1",
-        title: "Northern Peltry Reserve (£130+ Treasury)",
+        title: "Northern Peltry Reserve (£120+ Treasury)",
         description:
-          "Build the Seven Nations treasury to £130 or higher through fur extraction and trade.",
+          "Build the Seven Nations treasury to £120 or higher through fur extraction and trade.",
         howToComplete:
           "Issue EXTRACT and TRADE orders at Kahnawake.",
         victoryPoints: 4,
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const t = ctx.faction?.treasury ?? 0;
+          const full = t >= 120;
+          const pts = full ? 4 : t >= 80 ? 2 : 0;
           return {
-            isCompleted: t >= 130,
-            progressText: `£${t} / £130 Peltry Treasury`,
-            progressPercent: Math.min(100, Math.round((t / 130) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `£${t} / £120 Peltry Treasury (+${pts}/4 VP)`,
+            progressPercent: Math.min(100, Math.round((t / 120) * 100)),
           };
         },
       },
@@ -1739,9 +1964,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["EXTRACT", "TRADE", "SUBSIDIZE"]);
+          const full = count >= 2;
+          const pts = full ? 3 : count >= 1 ? 1 : 0;
           return {
-            isCompleted: count >= 2,
-            progressText: `${count} / 2 Conduit Orders`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 2 Conduit Orders (+${pts}/3 VP)`,
             progressPercent: Math.min(100, Math.round((count / 2) * 100)),
           };
         },
@@ -1757,9 +1985,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "DIPLOMATIC",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["SUBSIDIZE"]) + (ctx.factionDispatches?.length ?? 0);
+          const full = count >= 1;
+          const pts = full ? 3 : 0;
           return {
-            isCompleted: count >= 1,
-            progressText: `${count} / 1 Kinship Dispatch`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 1 Kinship Dispatch (+${pts}/3 VP)`,
             progressPercent: Math.min(100, count * 100),
           };
         },
@@ -1786,16 +2017,18 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         id: "wc-exec-1",
         title: "Sovereigns of the Ohio Country (Hold Scioto & Ohio Forks)",
         description:
-          "Maintain Western Confederacy control over both Scioto Council Towns and Ohio River Portage & Forks.",
+          "Maintain Western Confederacy control over Scioto Council Towns and Ohio River Portage & Forks.",
         howToComplete:
           "Defend Scioto and Ohio River Portage with strong war parties.",
         victoryPoints: 4,
         category: "TERRITORIAL",
         evaluate: (ctx) => {
           const res = hasNodeControl(ctx, ["Scioto", "Ohio River Portage"]);
+          const pts = res.allControlled ? 4 : res.controlledCount >= 1 ? 2 : 0;
           return {
             isCompleted: res.allControlled,
-            progressText: `${res.controlledCount} / 2 Ohio Heartland Nodes Held`,
+            earnedVP: pts,
+            progressText: `${res.controlledCount} / 2 Ohio Nodes Held (+${pts}/4 VP)`,
             progressPercent: Math.round((res.controlledCount / 2) * 100),
           };
         },
@@ -1811,18 +2044,21 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "SOVEREIGNTY",
         evaluate: (ctx) => {
           const covs = ctx.faction?.covenantBoundaries?.length ?? 0;
+          const full = covs >= 1;
+          const pts = full ? 3 : 0;
           return {
-            isCompleted: covs >= 1,
-            progressText: `${covs} / 1 Easton Covenant Proclaimed`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${covs} / 1 Easton Covenant Proclaimed (+${pts}/3 VP)`,
             progressPercent: Math.min(100, covs * 100),
           };
         },
       },
       {
         id: "wc-exec-3",
-        title: "Council Fire Unity (Unrest ≤ 35% & Standing ≥ 6)",
+        title: "Council Fire Unity (Unrest ≤ 50% & Standing ≥ 6)",
         description:
-          "Keep Confederacy domestic Unrest at or below 35% while achieving 6+ Standing Points.",
+          "Maintain Confederacy cohesion with Unrest at or below 50% while achieving 6+ Standing Points.",
         howToComplete:
           "Distribute trade goods via SUBSIDIZE/TRADE to cool border war weariness.",
         victoryPoints: 3,
@@ -1830,11 +2066,14 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const u = ctx.faction?.unrestIndex ?? 0;
           const s = ctx.faction?.standingPoints ?? 0;
-          const done = u <= 35 && s >= 6;
+          const full = u <= 50 && s >= 6;
+          const partial = s >= 6 || u <= 50;
+          const pts = full ? 3 : partial ? 1 : 0;
           return {
-            isCompleted: done,
-            progressText: `Unrest: ${u}% (≤35%) • Standing: ${s}/6`,
-            progressPercent: done ? 100 : Math.min(85, Math.round((s / 6) * 75)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Unrest: ${u}% (≤50%) • Standing: ${s}/6 (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : partial ? 60 : 30,
           };
         },
       },
@@ -1863,9 +2102,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "MILITARY",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["RAID"]);
+          const full = count >= 2;
+          const pts = full ? 4 : count >= 1 ? 2 : 0;
           return {
-            isCompleted: count >= 2,
-            progressText: `${count} / 2 Frontier Raids Executed`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 2 Frontier Raids Executed (+${pts}/4 VP)`,
             progressPercent: Math.min(100, Math.round((count / 2) * 100)),
           };
         },
@@ -1881,9 +2123,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "MILITARY",
         evaluate: (ctx) => {
           const str = getTotalStrength(ctx);
+          const full = str >= 2200;
+          const pts = full ? 3 : str >= 1500 ? 1 : 0;
           return {
-            isCompleted: str >= 2200,
-            progressText: `${str.toLocaleString()} / 2,200 Warrior Strength`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${str.toLocaleString()} / 2,200 Warrior Strength (+${pts}/3 VP)`,
             progressPercent: Math.min(100, Math.round((str / 2200) * 100)),
           };
         },
@@ -1892,17 +2137,22 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         id: "wc-mil-3",
         title: "Reclaim the Forks (3+ Controlled Nodes)",
         description:
-          "Expand Western Confederacy territorial control to 3 or more nodes (e.g. capturing Fort Duquesne or Fort Niagara).",
+          "Expand Western Confederacy territorial control to 3+ nodes, OR hold both Ohio nodes with 3+ raid sorties.",
         howToComplete:
           "March war parties using MOVE orders to capture an adjacent fort.",
         victoryPoints: 3,
         category: "TERRITORIAL",
         evaluate: (ctx) => {
           const count = ctx.faction?.nodesControlled?.length ?? 0;
+          const raids = countOrdersOfType(ctx, ["RAID"]);
+          const full = count >= 3;
+          const partial = count >= 2 && raids >= 3;
+          const pts = full ? 3 : partial ? 2 : count >= 2 ? 1 : 0;
           return {
-            isCompleted: count >= 3,
-            progressText: `${count} / 3 Nodes Controlled`,
-            progressPercent: Math.min(100, Math.round((count / 3) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} Nodes Held • ${raids} Raids Launched (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : partial ? 75 : 40,
           };
         },
       },
@@ -1922,19 +2172,22 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
     objectives: [
       {
         id: "wc-dip-1",
-        title: "Ohio Valley Peltry Wealth (£160+ Treasury)",
+        title: "Ohio Valley Peltry Wealth (£150+ Treasury)",
         description:
-          "Accumulate at least £160 in the Western Confederacy treasury from Ohio fur extraction and trade.",
+          "Accumulate at least £150 in the Western Confederacy treasury from Ohio fur extraction and trade.",
         howToComplete:
           "Issue EXTRACT and TRADE orders at Scioto Council Towns and Ohio River Portage.",
         victoryPoints: 4,
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const t = ctx.faction?.treasury ?? 0;
+          const full = t >= 150;
+          const pts = full ? 4 : t >= 100 ? 2 : 0;
           return {
-            isCompleted: t >= 160,
-            progressText: `£${t} / £160 Peltry Treasury`,
-            progressPercent: Math.min(100, Math.round((t / 160) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `£${t} / £150 Peltry Treasury (+${pts}/4 VP)`,
+            progressPercent: Math.min(100, Math.round((t / 150) * 100)),
           };
         },
       },
@@ -1949,9 +2202,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["EXTRACT", "TRADE"]);
+          const full = count >= 2;
+          const pts = full ? 3 : count >= 1 ? 1 : 0;
           return {
-            isCompleted: count >= 2,
-            progressText: `${count} / 2 Peltry & Powder Orders`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 2 Peltry Orders (+${pts}/3 VP)`,
             progressPercent: Math.min(100, Math.round((count / 2) * 100)),
           };
         },
@@ -1967,9 +2223,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "DIPLOMATIC",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["SUBSIDIZE"]) + (ctx.factionDispatches?.length ?? 0);
+          const full = count >= 1;
+          const pts = full ? 3 : 0;
           return {
-            isCompleted: count >= 1,
-            progressText: `${count} / 1 Council Gift Action`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 1 Council Gift Action (+${pts}/3 VP)`,
             progressPercent: Math.min(100, count * 100),
           };
         },
@@ -2004,11 +2263,13 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const held = hasNodeControl(ctx, ["Chota"]).allControlled;
           const covs = ctx.faction?.covenantBoundaries?.length ?? 0;
-          const done = held && covs >= 1;
+          const full = held && covs >= 1;
+          const pts = full ? 4 : held ? 2 : 0;
           return {
-            isCompleted: done,
-            progressText: `Chota: ${held ? "Held" : "Lost"} • ${covs}/1 Covenant Line`,
-            progressPercent: done ? 100 : held ? 50 : 0,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Chota: ${held ? "Held" : "Lost"} • ${covs}/1 Covenant (+${pts}/4 VP)`,
+            progressPercent: full ? 100 : held ? 50 : 0,
           };
         },
       },
@@ -2023,28 +2284,34 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "DIPLOMATIC",
         evaluate: (ctx) => {
           const pts = ctx.faction?.standingPoints ?? 0;
+          const full = pts >= 6;
+          const earned = full ? 3 : pts >= 5 ? 1 : 0;
           return {
-            isCompleted: pts >= 6,
-            progressText: `${pts} / 6 Standing Points`,
+            isCompleted: full,
+            earnedVP: earned,
+            progressText: `${pts} / 6 Standing Points (+${earned}/3 VP)`,
             progressPercent: Math.min(100, Math.round((pts / 6) * 100)),
           };
         },
       },
       {
         id: "se-exec-3",
-        title: "Peace of the Overhill Towns (Unrest ≤ 20%)",
+        title: "Peace of the Overhill Towns (Unrest ≤ 25%)",
         description:
-          "Keep internal Confederacy Unrest at 20% or lower.",
+          "Keep internal Confederacy Unrest at 25% or lower.",
         howToComplete:
           "Prevent foreign occupation of Chota and maintain steady trade goods distribution.",
         victoryPoints: 3,
         category: "SOVEREIGNTY",
         evaluate: (ctx) => {
           const u = ctx.faction?.unrestIndex ?? 0;
+          const full = u <= 25;
+          const pts = full ? 3 : u <= 35 ? 1 : 0;
           return {
-            isCompleted: u <= 20,
-            progressText: `Unrest: ${u}% (Target ≤ 20%)`,
-            progressPercent: u <= 20 ? 100 : Math.max(0, 100 - (u - 20) * 3),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Unrest: ${u}% (Target ≤ 25%) (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : Math.max(0, 100 - (u - 25) * 3),
           };
         },
       },
@@ -2073,9 +2340,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "MILITARY",
         evaluate: (ctx) => {
           const str = getTotalStrength(ctx);
+          const full = str >= 2200;
+          const pts = full ? 4 : str >= 1500 ? 2 : 0;
           return {
-            isCompleted: str >= 2200,
-            progressText: `${str.toLocaleString()} / 2,200 Warrior Strength`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${str.toLocaleString()} / 2,200 Warrior Strength (+${pts}/4 VP)`,
             progressPercent: Math.min(100, Math.round((str / 2200) * 100)),
           };
         },
@@ -2091,9 +2361,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "MILITARY",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["RAID"]);
+          const full = count >= 2;
+          const pts = full ? 3 : count >= 1 ? 1 : 0;
           return {
-            isCompleted: count >= 2,
-            progressText: `${count} / 2 Frontier Raids Executed`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 2 Frontier Raids Executed (+${pts}/3 VP)`,
             progressPercent: Math.min(100, Math.round((count / 2) * 100)),
           };
         },
@@ -2102,7 +2375,7 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         id: "se-mil-3",
         title: "Guardians of the Southern Passes",
         description:
-          "Hold Chota and expand or project military force into at least 1 adjacent corridor.",
+          "Hold Chota and project military force via at least 1 expeditionary MOVE or RAID directive.",
         howToComplete:
           "Keep Chota garrisoned and issue MOVE or RAID orders.",
         victoryPoints: 3,
@@ -2110,11 +2383,13 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         evaluate: (ctx) => {
           const held = hasNodeControl(ctx, ["Chota"]).allControlled;
           const moves = countOrdersOfType(ctx, ["MOVE", "RAID"]);
-          const done = held && moves >= 1;
+          const full = held && moves >= 1;
+          const pts = full ? 3 : held ? 1 : 0;
           return {
-            isCompleted: done,
-            progressText: `Chota Held • ${moves}/1 Mountain Expedition`,
-            progressPercent: done ? 100 : held ? 50 : 0,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `Chota Held • ${moves}/1 Expeditions (+${pts}/3 VP)`,
+            progressPercent: full ? 100 : held ? 50 : 0,
           };
         },
       },
@@ -2134,19 +2409,22 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
     objectives: [
       {
         id: "se-dip-1",
-        title: "Southern Deerskin Emporium (£150+ Treasury)",
+        title: "Southern Deerskin Emporium (£140+ Treasury)",
         description:
-          "Accumulate at least £150 in the Confederacy treasury through deerskin extraction and trade.",
+          "Accumulate at least £140 in the Confederacy treasury through deerskin extraction and trade.",
         howToComplete:
           "Submit EXTRACT and TRADE orders at Chota.",
         victoryPoints: 4,
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const t = ctx.faction?.treasury ?? 0;
+          const full = t >= 140;
+          const pts = full ? 4 : t >= 90 ? 2 : 0;
           return {
-            isCompleted: t >= 150,
-            progressText: `£${t} / £150 Deerskin Treasury`,
-            progressPercent: Math.min(100, Math.round((t / 150) * 100)),
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `£${t} / £140 Deerskin Treasury (+${pts}/4 VP)`,
+            progressPercent: Math.min(100, Math.round((t / 140) * 100)),
           };
         },
       },
@@ -2161,9 +2439,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "ECONOMIC",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["EXTRACT", "TRADE"]);
+          const full = count >= 2;
+          const pts = full ? 3 : count >= 1 ? 1 : 0;
           return {
-            isCompleted: count >= 2,
-            progressText: `${count} / 2 Caravan Directives`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 2 Caravan Directives (+${pts}/3 VP)`,
             progressPercent: Math.min(100, Math.round((count / 2) * 100)),
           };
         },
@@ -2179,9 +2460,12 @@ export const CHARACTER_ROLE_GUIDES: CharacterRoleGuide[] = [
         category: "DIPLOMATIC",
         evaluate: (ctx) => {
           const count = countOrdersOfType(ctx, ["SUBSIDIZE"]) + (ctx.factionDispatches?.length ?? 0);
+          const full = count >= 1;
+          const pts = full ? 3 : 0;
           return {
-            isCompleted: count >= 1,
-            progressText: `${count} / 1 Diplomatic Envoy Action`,
+            isCompleted: full,
+            earnedVP: pts,
+            progressText: `${count} / 1 Diplomatic Envoy (+${pts}/3 VP)`,
             progressPercent: Math.min(100, count * 100),
           };
         },
@@ -2229,12 +2513,17 @@ export function evaluateCharacterObjectives(
   let earnedVP = 0;
   const evaluatedObjectives = guide.objectives.map((obj) => {
     const res = obj.evaluate(ctx);
-    if (res.isCompleted) {
-      earnedVP += obj.victoryPoints;
-    }
+    const pts =
+      typeof res.earnedVP === "number"
+        ? res.earnedVP
+        : res.isCompleted
+        ? obj.victoryPoints
+        : 0;
+    earnedVP += pts;
     return {
       ...obj,
       ...res,
+      earnedVP: pts,
     };
   });
 

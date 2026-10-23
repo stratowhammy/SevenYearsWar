@@ -273,8 +273,9 @@ async function runCampaignRound8() {
     for (const r of f.roleBreakdown) {
       console.log(`  * ${r.roleType} [${r.title}]: ${r.victoryPoints}/10 VP`);
       if (Array.isArray(r.breakdown)) {
-        for (const obj of r.breakdown) {
-          console.log(`     - [${obj.isCompleted ? "COMPLETED" : "INCOMPLETE"}] ${obj.title} (+${obj.victoryPoints} VP): ${obj.progressText}`);
+        for (const item of r.breakdown) {
+          const obj = item as any;
+          console.log(`     - [${obj?.isCompleted ? "COMPLETED" : "INCOMPLETE"}] ${obj?.title} (+${obj?.earnedVP ?? (obj?.isCompleted ? obj?.victoryPoints : 0)}/${obj?.victoryPoints} VP): ${obj?.progressText}`);
         }
       }
     }

@@ -1161,6 +1161,7 @@ export async function reconcileAndPersistVictoryPoints(gameId: string) {
             id: obj.id,
             title: obj.title,
             victoryPoints: obj.victoryPoints,
+            earnedVP: (obj as any).earnedVP ?? (obj.isCompleted ? obj.victoryPoints : 0),
             isCompleted: obj.isCompleted,
             progressText: obj.progressText,
             progressPercent: obj.progressPercent,
